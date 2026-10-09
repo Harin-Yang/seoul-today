@@ -48,7 +48,15 @@ export async function getText(url, { retries = 3, timeout = 30000 } = {}) {
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
       return text;
     } catch (err) {
-      if (attempt === retries) throw err;
+      // 연결 자체가 안 되면(HTTP 응답 없음) http로 한 번 더 시도한다
+      if (attempt === retries && err.cause && url.startsWith('https://apis.data.go.kr')) {
+        try { return await getText(url.replace('https://', 'http://'), { retries: 1, timeout }); } catch { /* 아래에서 원래 오류 보고 */ }
+      }
+      if (attempt === retries) {
+        // "fetch failed"만으로는 원인을 알 수 없어 네트워크 오류 코드를 붙인다 (키는 가린다)
+        const cause = err.cause ? ` (${err.cause.code ?? ''} ${err.cause.message ?? ''})` : '';
+        throw new Error(`${err.message}${cause} @ ${url.replace(/serviceKey=[^&]+/, 'serviceKey=***').slice(0, 120)}`);
+      }
       await new Promise((r) => setTimeout(r, 1500 * attempt));
     }
   }
