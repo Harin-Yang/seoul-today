@@ -13,12 +13,22 @@ export function isoDate(s) {
   return m ? `${m[1]}-${m[2]}-${m[3]}` : '';
 }
 
+const ENTITIES = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", middot: '·', hellip: '…', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', ndash: '–', mdash: '—', bull: '•', times: '×' };
+function decodeEntities(s) {
+  // "&amp;middot;"처럼 두 번 인코딩된 경우가 있어 두 번 푼다
+  for (let i = 0; i < 2; i++) {
+    s = s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, code) => {
+      if (code[0] === '#') return String.fromCodePoint(code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : +code.slice(1));
+      return ENTITIES[code.toLowerCase()] ?? m;
+    });
+  }
+  return s;
+}
+
 export function cleanText(s) {
-  return String(s ?? '')
+  return decodeEntities(String(s ?? '')
     .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
+    .replace(/<[^>]+>/g, ' '))
     .replace(/\s+/g, ' ')
     .trim();
 }

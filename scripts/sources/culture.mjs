@@ -12,8 +12,10 @@ const GAP_MS = 150;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // 분류명 → 서울시 데이터와 같은 카테고리 체계
-function category(realm = '', service = '') {
+function category(realm = '', service = '', title = '') {
   const t = `${realm} ${service}`;
+  // "음악/콘서트"로 묶여 오는 클래식 공연은 제목으로 가려낸다
+  if (/음악|콘서트/.test(t) && /독주회|리사이틀|연주회|오케스트라|교향|필하모닉|심포니|실내악|챔버|첼로|피아노|바이올린|비올라|성악|가곡|콰르텟|트리오|소나타|협주곡/.test(title) && !/재즈|밴드|록|힙합|아이돌|팬미팅/.test(title)) return '클래식';
   if (/전시|미술|사진/.test(t)) return '전시/미술';
   if (/뮤지컬|오페라/.test(t)) return '뮤지컬/오페라';
   if (/연극/.test(t)) return '연극';
@@ -89,7 +91,7 @@ export async function fetchCulture(today, keyRaw = process.env.DATA_GO_KR_KEY) {
     const price = cleanPrice(d.price);
     const raw = {
       TITLE: it.title,
-      CODENAME: category(it.realmName, it.serviceName),
+      CODENAME: category(it.realmName, it.serviceName, it.title),
       PLACE: it.place || d.place || '',
       PROGRAM: d.contents1 || '',
       USE_TRGT: /아동|가족|어린이/.test(it.realmName ?? '') ? '어린이' : '',
