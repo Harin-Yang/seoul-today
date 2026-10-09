@@ -1,4 +1,6 @@
 // 수집기 공통 도구
+import http from 'node:http';
+import https from 'node:https';
 import { classify, excludeReason, isOutdoor } from './classify.mjs';
 
 export const HORIZON_DAYS = 14; // 오늘부터 2주 안에 진행되는 행사까지 포함
@@ -54,6 +56,21 @@ export function firstUrl(s) {
   return String(s ?? '').match(/https?:\/\/[^\s"'<>]+/)?.[0] ?? '';
 }
 
+/** fetch는 연결 제한시간이 10초로 고정이라, 느린 서버용으로 연결을 오래 기다리는 요청 */
+function slowGet(url, timeout = 45000) {
+  return new Promise((resolve, reject) => {
+    const target = url.replace(/#.*$/, '');
+    const req = (target.startsWith('https:') ? https : http).get(target, { timeout }, (res) => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (c) => (body += c));
+      res.on('end', () => (res.statusCode >= 200 && res.statusCode < 300 ? resolve(body) : reject(new Error(`HTTP ${res.statusCode}: ${body.slice(0, 200)}`))));
+    });
+    req.on('timeout', () => req.destroy(new Error(`slowGet timeout ${timeout}ms`)));
+    req.on('error', reject);
+  });
+}
+
 export async function getText(url, { retries = 3, timeout = 30000 } = {}) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -63,6 +80,10 @@ export async function getText(url, { retries = 3, timeout = 30000 } = {}) {
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
       return text;
     } catch (err) {
+      // 연결 시간 초과면 연결을 더 오래 기다리는 방식으로 바로 다시 시도한다
+      if (err.cause?.code === 'UND_ERR_CONNECT_TIMEOUT') {
+        try { return await slowGet(url); } catch { /* 아래 재시도로 */ }
+      }
       // 연결 자체가 안 되면(HTTP 응답 없음) 다른 프로토콜(http↔https)로 한 번 더 시도한다
       if (attempt === retries && err.cause && url.includes('://apis.data.go.kr') && !url.includes('#swapped')) {
         const other = url.startsWith('https://') ? url.replace('https://', 'http://') : url.replace('http://', 'https://');
