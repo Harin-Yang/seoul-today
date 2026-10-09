@@ -16,6 +16,14 @@ const OUT = new URL('../data/events.json', import.meta.url);
 const prev = await readFile(OUT, 'utf8').then(JSON.parse).catch(() => null);
 const SOURCES = [['seoul', fetchSeoul], ['culture', fetchCulture], ['tour', fetchTour]];
 
+// 키 문제 진단용: 값은 남기지 않고 길이·문자 종류만 기록한다
+function keyShape(k) {
+  if (!k) return null;
+  const t = k.trim();
+  return { len: t.length, trimmed: t.length !== k.length, percent: t.includes('%'), plusSlashEq: /[+/=]/.test(t), hexOnly: /^[0-9a-f]+$/i.test(t) };
+}
+console.log('DATA_GO_KR_KEY 형태:', JSON.stringify(keyShape(process.env.DATA_GO_KR_KEY)));
+
 const results = await Promise.allSettled(SOURCES.map(([, fn]) => fn(today)));
 const stats = {};
 const all = [];
@@ -47,6 +55,7 @@ if (!all.length) {
 const series = mergeSeries(all);
 const { events, dupBySrc } = dedupe(series);
 events.sort((a, b) => a.end.localeCompare(b.end));
+stats.dataGoKrKey = keyShape(process.env.DATA_GO_KR_KEY);
 stats.total = { collected: all.length, afterSeries: series.length, final: events.length, crossSourceDup: dupBySrc };
 
 await mkdir(new URL('../data/', import.meta.url), { recursive: true });
