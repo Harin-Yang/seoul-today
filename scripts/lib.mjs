@@ -13,13 +13,17 @@ export function isoDate(s) {
   return m ? `${m[1]}-${m[2]}-${m[3]}` : '';
 }
 
-const ENTITIES = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", middot: '·', hellip: '…', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', ndash: '–', mdash: '—', bull: '•', times: '×' };
+const ENTITIES = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", middot: '·', hellip: '…', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', ndash: '–', mdash: '—', bull: '•', times: '×',
+  deg: '°', copy: '©', reg: '®', trade: '™', euro: '€', pound: '£', yen: '¥', laquo: '«', raquo: '»', sim: '∼',
+  auml: 'ä', ouml: 'ö', uuml: 'ü', Auml: 'Ä', Ouml: 'Ö', Uuml: 'Ü', szlig: 'ß', yuml: 'ÿ', euml: 'ë', iuml: 'ï',
+  aacute: 'á', eacute: 'é', iacute: 'í', oacute: 'ó', uacute: 'ú', Eacute: 'É', agrave: 'à', egrave: 'è', ograve: 'ò',
+  acirc: 'â', ecirc: 'ê', ocirc: 'ô', ntilde: 'ñ', ccedil: 'ç', aring: 'å', oslash: 'ø' };
 function decodeEntities(s) {
   // "&amp;middot;"처럼 두 번 인코딩된 경우가 있어 두 번 푼다
   for (let i = 0; i < 2; i++) {
     s = s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, code) => {
       if (code[0] === '#') return String.fromCodePoint(code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : +code.slice(1));
-      return ENTITIES[code.toLowerCase()] ?? m;
+      return ENTITIES[code] ?? ENTITIES[code.toLowerCase()] ?? m;
     });
   }
   return s;

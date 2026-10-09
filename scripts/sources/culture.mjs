@@ -9,6 +9,7 @@ const ROWS = 100;
 const MAX_PAGES = 60;
 const MAX_DETAILS = 900;
 const GAP_MS = 150;
+const PERFORMANCE = new Set(['연극', '뮤지컬/오페라', '콘서트', '클래식', '무용', '국악']);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // 분류명 → 서울시 데이터와 같은 카테고리 체계
@@ -113,6 +114,8 @@ export async function fetchCulture(today, keyRaw = process.env.DATA_GO_KR_KEY) {
       desc: clipDesc(d.contents1),
     });
     if (e.excluded) { countExcluded(stats, e.excluded); return; }
+    // 이 소스는 공연 시간이 없다. 국내 공연은 대부분 저녁(19:30~20:00) 시작이라 공연은 저녁 가능으로 본다
+    if (PERFORMANCE.has(e.cat)) e.night = true;
     events.push(e);
   });
   return { events, stats };
