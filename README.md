@@ -30,7 +30,7 @@ scripts/serve.mjs                 로컬 미리보기 서버 (node scripts/serve
 | 이름 | 발급처 | 없으면 |
 |---|---|---|
 | `SEOUL_API_KEY` | 서울 열린데이터광장 → 인증키 신청 | 공개 샘플키로 일부만 수집 |
-| `DATA_GO_KR_KEY` | 공공데이터포털 → 마이페이지 → 일반 인증키(Decoding) | 문화정보원·관광공사 소스 건너뜀 |
+| `DATA_GO_KR_KEY` | 공공데이터포털 → 마이페이지 → 활용신청 현황 → 개발계정 상세의 "일반 인증키" (Encoding/Decoding 모두 가능) | 문화정보원·관광공사 소스 건너뜀 |
 
 키를 바꾼 뒤에는 Actions 탭 → "매일 이벤트 업데이트" → **Run workflow**.
 
