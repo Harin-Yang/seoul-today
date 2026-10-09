@@ -1,0 +1,10 @@
+{
+  "name": "오늘 어디 가지",
+  "short_name": "오늘 어디",
+  "description": "내 주변 서울 문화행사를 데이트·혼놀·친구와로 골라보는 지도",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2f6bff",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
