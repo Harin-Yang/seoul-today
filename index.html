@@ -10,9 +10,12 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="오늘 어디">
+  <meta property="og:title" content="오늘 어디 가지">
+  <meta property="og:description" content="내 주변 서울 문화행사를 데이트·혼놀·친구와로 골라보는 지도">
+  <meta property="og:image" content="icon-512.png">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
   <link rel="stylesheet" href="style.css">
@@ -23,16 +26,17 @@
   <header class="topbar">
     <nav class="chips" id="labelChips" aria-label="라벨">
       <button class="chip on" data-label="all">전체</button>
-      <button class="chip" data-label="date">💑 데이트</button>
-      <button class="chip" data-label="solo">🎧 혼놀</button>
-      <button class="chip" data-label="friends">👯 친구와</button>
-      <button class="chip" data-label="saved">♥ 찜</button>
+      <button class="chip" data-label="date">💑 데이트<span class="n"></span></button>
+      <button class="chip" data-label="solo">🎧 혼놀<span class="n"></span></button>
+      <button class="chip" data-label="friends">👯 친구와<span class="n"></span></button>
+      <button class="chip" data-label="saved">♥ 찜<span class="n"></span></button>
     </nav>
     <nav class="chips small" id="whenChips" aria-label="기간">
       <button class="chip on" data-when="today">오늘</button>
       <button class="chip" data-when="weekend">이번 주말</button>
       <button class="chip" data-when="week">7일 내</button>
       <button class="chip toggle" id="freeChip">무료만</button>
+      <button class="chip toggle" id="indoorChip">☂ 실내만</button>
     </nav>
   </header>
 
@@ -45,7 +49,8 @@
       <div class="grip"></div>
       <div class="sheet-title">
         <strong id="countText">불러오는 중…</strong>
-        <span id="subText"></span>
+        <span id="weather" class="weather"></span>
+        <button class="sort" id="sortBtn" type="button">가까운 순</button>
       </div>
     </div>
     <div class="sheet-body" id="sheetBody">

@@ -7,17 +7,28 @@
     solo: { name: '혼놀', emoji: '🎧' },
     friends: { name: '친구와', emoji: '👯' },
   };
+  const CAT_EMOJI = {
+    '전시/미술': '🎨', '콘서트': '🎤', '클래식': '🎻', '독주/독창회': '🎻', '국악': '🥁', '무용': '💃',
+    '뮤지컬/오페라': '🎭', '연극': '🎭', '영화': '🎬', '교육/체험': '✋', '기타': '✨',
+  };
+  const catEmoji = (cat) => CAT_EMOJI[cat] ?? (cat?.startsWith('축제') ? '🎪' : '✨');
   const LIST_LIMIT = 80;
+  const WALK_M_PER_MIN = 67;
+  const MIN_VISIBLE = 8;
 
   const $ = (id) => document.getElementById(id);
   const state = {
     events: [],
+    byId: new Map(),
     label: 'all',
     when: 'today',
     freeOnly: false,
+    indoorOnly: false,
+    sort: 'near',
     me: null,
     selected: null,
     saved: new Set(load('saved', [])),
+    deepLink: new URLSearchParams(location.search).get('e'),
   };
 
   // ── 저장소 (실패해도 동작) ──
@@ -27,11 +38,13 @@
   function store(key, value) {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* 무시 */ }
   }
+  const savePrefs = () => store('prefs', { label: state.label, when: state.when, freeOnly: state.freeOnly, sort: state.sort });
 
   // ── 날짜 ──
   const ymd = (d) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(d);
   const addDays = (s, n) => ymd(new Date(Date.parse(s + 'T12:00:00+09:00') + n * 864e5));
   const today = ymd(new Date());
+  const tomorrow = addDays(today, 1);
   function range(when) {
     if (when === 'today') return [today, today];
     if (when === 'week') return [today, addDays(today, 6)];
@@ -40,10 +53,13 @@
     const sat = addDays(today, 6 - dow);
     return [sat, addDays(sat, 1)];
   }
-  function daysLeft(end) {
-    return Math.round((Date.parse(end) - Date.parse(today)) / 864e5);
-  }
+  const daysLeft = (end) => Math.round((Date.parse(end) - Date.parse(today)) / 864e5);
   const shortDate = (s) => `${+s.slice(5, 7)}.${+s.slice(8, 10)}`;
+  function when(e) {
+    if (e.start > today) return e.start === tomorrow ? '내일 시작' : `${shortDate(e.start)} 시작`;
+    if (e.end === today) return e.start === today ? '오늘만' : '오늘까지';
+    return `~${shortDate(e.end)}`;
+  }
 
   // ── 거리 ──
   function dist(a, b) {
@@ -52,8 +68,13 @@
     const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * toR) * Math.cos(b[0] * toR) * Math.sin(dLng / 2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(h));
   }
-  const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10}m` : `${(m / 1000).toFixed(1)}km`);
+  function fmtDist(m) {
+    const walk = Math.round((m * 1.3) / WALK_M_PER_MIN); // 직선거리 → 실제 보행 거리 보정
+    if (walk <= 25) return `도보 ${Math.max(walk, 1)}분`;
+    return m < 1000 ? `${Math.round(m / 10) * 10}m` : `${(m / 1000).toFixed(1)}km`;
+  }
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const clip = (s, n) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
   // ── 지도 ──
   const map = L.map('map', { zoomControl: false, attributionControl: true }).setView(SEOUL, 12);
@@ -80,32 +101,33 @@
     return LABELS[state.label] && e.labels.includes(state.label) ? state.label : e.labels[0];
   }
   function pinIcon(e, active) {
-    const l = primaryLabel(e);
     return L.divIcon({
-      html: `<div class="pin ${l}${active ? ' active' : ''}"><span>${LABELS[l].emoji}</span></div>`,
+      html: `<div class="pin ${primaryLabel(e)}${active ? ' active' : ''}${state.saved.has(e.id) ? ' saved' : ''}"><span>${catEmoji(e.cat)}</span></div>`,
       className: '', iconSize: [34, 34], iconAnchor: [17, 34],
     });
   }
 
   // ── 필터 ──
-  function filtered() {
+  function baseFiltered() {
     const [from, to] = range(state.when);
-    return state.events.filter((e) => {
-      if (e.start > to || e.end < from) return false;
-      if (state.freeOnly && !e.free) return false;
-      if (state.label === 'saved') return state.saved.has(e.id);
-      if (state.label !== 'all' && !e.labels.includes(state.label)) return false;
-      return true;
-    });
+    return state.events.filter((e) =>
+      e.start <= to && e.end >= from &&
+      (!state.freeOnly || e.free) &&
+      (!state.indoorOnly || !e.out));
   }
+  function matchesLabel(e, label) {
+    if (label === 'all') return true;
+    if (label === 'saved') return state.saved.has(e.id);
+    return e.labels.includes(label);
+  }
+  const filtered = () => baseFiltered().filter((e) => matchesLabel(e, state.label));
 
   function renderMarkers() {
     cluster.clearLayers();
     markers.clear();
-    const list = filtered();
-    const layers = list.map((e) => {
+    const layers = filtered().map((e) => {
       const m = L.marker([e.lat, e.lng], { icon: pinIcon(e, state.selected?.id === e.id) });
-      m.on('click', () => openDetail(e, false));
+      m.on('click', () => openDetail(e, { fly: false }));
       markers.set(e.id, m);
       return m;
     });
@@ -114,46 +136,80 @@
   }
 
   // ── 목록 ──
-  function origin() { return state.me ?? [map.getCenter().lat, map.getCenter().lng]; }
+  const origin = () => state.me ?? [map.getCenter().lat, map.getCenter().lng];
 
   function tagsHtml(e) {
     const left = daysLeft(e.end);
     return `<div class="tags">${e.labels.map((l) => `<span class="tag ${l}">${LABELS[l].emoji} ${LABELS[l].name}</span>`).join('')}${
-      e.free ? '<span class="tag free">무료</span>' : ''}${
-      left <= 3 && left >= 0 ? `<span class="tag soon">${left === 0 ? '오늘 마감' : `D-${left}`}</span>` : ''}</div>`;
+      e.free ? '<span class="tag plain">무료</span>' : ''}${
+      e.out ? '<span class="tag plain">야외</span>' : ''}${
+      left <= 3 && left >= 1 && e.start <= today ? `<span class="tag soon">D-${left}</span>` : ''}</div>`;
+  }
+
+  function updateChipCounts(inView) {
+    document.querySelectorAll('#labelChips [data-label]').forEach((b) => {
+      const n = b.querySelector('.n');
+      if (n) n.textContent = ` ${inView.filter((e) => matchesLabel(e, b.dataset.label)).length}`;
+    });
   }
 
   function renderList() {
     if (state.selected) return;
-    const bounds = map.getBounds().pad(0.1);
-    const all = filtered();
+    const bounds = map.getBounds().pad(0.05);
     const o = origin();
-    const inView = all
-      .filter((e) => bounds.contains([e.lat, e.lng]))
+    const base = baseFiltered();
+    const inViewBase = base.filter((e) => bounds.contains([e.lat, e.lng]));
+    updateChipCounts(inViewBase);
+    const all = base.filter((e) => matchesLabel(e, state.label));
+    const items = inViewBase
+      .filter((e) => matchesLabel(e, state.label))
       .map((e) => ({ e, d: dist(o, [e.lat, e.lng]) }))
-      .sort((a, b) => a.d - b.d);
+      .sort(state.sort === 'near' ? (a, b) => a.d - b.d : (a, b) => a.e.end.localeCompare(b.e.end) || a.d - b.d);
 
-    $('countText').textContent = `이 지역 ${inView.length}곳`;
-    $('subText').textContent = `${state.me ? '내 위치' : '지도 중심'}에서 가까운 순`;
-    $('list').innerHTML = inView.length
-      ? inView.slice(0, LIST_LIMIT).map(({ e, d }) => `
-        <li class="item" data-id="${esc(e.id)}">
-          <img class="thumb" src="${esc(e.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">
-          <div class="item-body">
-            ${tagsHtml(e)}
-            <h3>${esc(e.title)}</h3>
-            <div class="meta">${fmtDist(d)} · ${esc(e.gu)} · ~${shortDate(e.end)}${e.time ? ` · ${esc(e.time)}` : ''}</div>
-            <div class="reason">${esc(e.reason)}</div>
-          </div>
-        </li>`).join('')
-      : `<li class="empty">${all.length ? '이 지역엔 없어요. 지도를 움직이거나 축소해 보세요.' : state.label === 'saved' ? '찜한 곳이 없어요. 상세에서 ♥를 눌러 저장하세요.' : '조건에 맞는 행사가 없어요.'}</li>`;
+    $('countText').textContent = `이 지역 ${items.length}곳`;
+    $('sortBtn').textContent = state.sort === 'near' ? '가까운 순' : '마감 임박 순';
+    if (!items.length) {
+      $('list').innerHTML = `<li class="empty">${
+        !all.length
+          ? state.label === 'saved' ? '찜한 곳이 없어요.<br>상세 화면에서 ♡를 눌러 저장하세요.' : '조건에 맞는 행사가 없어요.<br>기간이나 필터를 바꿔 보세요.'
+          : `이 지역엔 없어요.<br><button class="btn small" id="nearestBtn">가장 가까운 곳 보기</button>`}</li>`;
+      $('nearestBtn')?.addEventListener('click', () => showNearest(all));
+      return;
+    }
+    $('list').innerHTML = items.slice(0, LIST_LIMIT).map(({ e, d }) => `
+      <li class="item" data-id="${esc(e.id)}">
+        <img class="thumb" src="${esc(e.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">
+        <div class="item-body">
+          ${tagsHtml(e)}
+          <h3>${state.saved.has(e.id) ? '<span class="heart">♥</span> ' : ''}${esc(e.title)}</h3>
+          <div class="meta"><b>${fmtDist(d)}</b> · ${esc(when(e))} · ${catEmoji(e.cat)} ${esc(e.cat)}</div>
+          <div class="meta">${esc(clip(e.place, 24))}${e.time ? ` · ${esc(clip(e.time, 22))}` : ''}</div>
+          <div class="reason">${esc(e.reason)}</div>
+        </div>
+      </li>`).join('') + (items.length > LIST_LIMIT ? `<li class="empty">가까운 ${LIST_LIMIT}곳까지 보여드려요. 지도를 확대해 보세요.</li>` : '');
+  }
+
+  function showNearest(list) {
+    const o = origin();
+    const near = list.map((e) => ({ e, d: dist(o, [e.lat, e.lng]) })).sort((a, b) => a.d - b.d).slice(0, 3);
+    const pts = near.map(({ e }) => [e.lat, e.lng]);
+    if (state.me) pts.push(state.me);
+    map.fitBounds(pts, { paddingTopLeft: [40, 120], paddingBottomRight: [40, innerHeight * 0.5 + 20], maxZoom: 16 });
   }
 
   $('list').addEventListener('click', (ev) => {
     const li = ev.target.closest('.item');
     if (!li) return;
-    const e = state.events.find((x) => x.id === li.dataset.id);
-    if (e) openDetail(e, true);
+    const e = state.byId.get(li.dataset.id);
+    if (e) openDetail(e, { fly: true });
+  });
+
+  $('sortBtn').addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    state.sort = state.sort === 'near' ? 'ending' : 'near';
+    savePrefs();
+    renderList();
+    $('sheetBody').scrollTop = 0;
   });
 
   // ── 상세 ──
@@ -161,39 +217,54 @@
     const m = e && markers.get(e.id);
     if (m) m.setIcon(pinIcon(e, on));
   }
+  const shareUrl = (e) => `${location.origin}${location.pathname}?e=${encodeURIComponent(e.id)}`;
 
-  function openDetail(e, fly) {
+  function openDetail(e, { fly = false, push = true } = {}) {
+    if (push) {
+      if (state.selected) history.replaceState({ e: e.id }, '', `?e=${encodeURIComponent(e.id)}`);
+      else history.pushState({ e: e.id }, '', `?e=${encodeURIComponent(e.id)}`);
+    }
     setActive(state.selected, false);
     state.selected = e;
     setActive(e, true);
     const d = state.me ? ` · 내 위치에서 ${fmtDist(dist(state.me, [e.lat, e.lng]))}` : '';
     const saved = state.saved.has(e.id);
     const kakao = `https://map.kakao.com/link/to/${encodeURIComponent(e.place)},${e.lat},${e.lng}`;
+    const naver = `https://map.naver.com/p/search/${encodeURIComponent(e.place)}`;
+    const period = e.start === e.end ? e.start : `${e.start} ~ ${e.end}`;
     $('detail').innerHTML = `
       <button class="back" id="backBtn">‹ 목록</button>
       ${tagsHtml(e)}
       <h2>${esc(e.title)}</h2>
       <div class="reason">${esc(e.reason)}</div>
-      <dl>
-        <dt>기간</dt><dd>${e.start === e.end ? e.start : `${e.start} ~ ${e.end}`}${e.time ? `<br>${esc(e.time)}` : ''}</dd>
-        <dt>장소</dt><dd>${esc(e.place)} (${esc(e.gu)})${d}</dd>
-        <dt>요금</dt><dd>${esc(e.fee || (e.free ? '무료' : '-'))}</dd>
-        ${e.target ? `<dt>대상</dt><dd>${esc(e.target)}</dd>` : ''}
-        <dt>분류</dt><dd>${esc(e.cat)}</dd>
-      </dl>
       <div class="actions">
         <a class="btn primary" href="${kakao}" target="_blank" rel="noopener">길찾기</a>
-        <a class="btn" href="${esc(e.url)}" target="_blank" rel="noopener">상세 보기</a>
-        <button class="btn ${saved ? 'saved' : ''}" id="saveBtn" aria-label="찜">${saved ? '♥' : '♡'}</button>
+        <button class="btn" id="shareBtn" type="button">공유</button>
+        <button class="btn icon ${saved ? 'saved' : ''}" id="saveBtn" type="button" aria-label="찜">${saved ? '♥' : '♡'}</button>
+      </div>
+      <dl>
+        <dt>기간</dt><dd>${esc(period)}${e.start > today || e.end === today ? ` <span class="muted">(${esc(when(e))})</span>` : ''}</dd>
+        ${e.time ? `<dt>시간</dt><dd>${esc(e.time)}</dd>` : ''}
+        <dt>장소</dt><dd>${esc(e.place)} <span class="muted">${esc(e.gu)}${d}</span><br><a href="${naver}" target="_blank" rel="noopener">네이버지도에서 보기</a></dd>
+        <dt>요금</dt><dd>${esc(e.fee || (e.free ? '무료' : '-'))}</dd>
+        ${e.target ? `<dt>대상</dt><dd>${esc(e.target)}</dd>` : ''}
+        <dt>분류</dt><dd>${catEmoji(e.cat)} ${esc(e.cat)}${e.out ? ' · 야외' : ''}</dd>
+      </dl>
+      ${e.desc ? `<p class="desc">${esc(e.desc)}</p>` : ''}
+      <div class="links">
+        <a class="btn" href="${esc(e.url)}" target="_blank" rel="noopener">상세 정보</a>
+        ${e.ticket ? `<a class="btn" href="${esc(e.ticket)}" target="_blank" rel="noopener">예매·신청</a>` : ''}
       </div>
       ${e.img ? `<img class="poster" src="${esc(e.img.replace('thumb=Y', 'thumb=N'))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}`;
     $('list').hidden = true;
     $('detail').hidden = false;
     $('countText').textContent = '상세 정보';
-    $('subText').textContent = '';
+    $('sortBtn').hidden = true;
+    $('weather').hidden = true;
     $('sheetBody').scrollTop = 0;
-    $('backBtn').onclick = closeDetail;
+    $('backBtn').onclick = () => (history.state?.e ? history.back() : closeDetail());
     $('saveBtn').onclick = () => toggleSave(e);
+    $('shareBtn').onclick = () => share(e);
     setSheet('half');
     const m = markers.get(e.id);
     if (fly && m) cluster.zoomToShowLayer(m, () => showAboveSheet([e.lat, e.lng]));
@@ -213,8 +284,17 @@
     state.selected = null;
     $('detail').hidden = true;
     $('list').hidden = false;
+    $('sortBtn').hidden = false;
+    $('weather').hidden = false;
     renderList();
   }
+
+  addEventListener('popstate', () => {
+    const id = history.state?.e;
+    const e = id && state.byId.get(id);
+    if (e) openDetail(e, { push: false });
+    else if (state.selected) closeDetail();
+  });
 
   function toggleSave(e) {
     state.saved.has(e.id) ? state.saved.delete(e.id) : state.saved.add(e.id);
@@ -222,15 +302,24 @@
     const on = state.saved.has(e.id);
     $('saveBtn').textContent = on ? '♥' : '♡';
     $('saveBtn').classList.toggle('saved', on);
-    toast(on ? '찜했어요' : '찜을 취소했어요');
+    setActive(e, true);
+    toast(on ? '찜했어요 · 상단 ♥ 찜에서 모아볼 수 있어요' : '찜을 취소했어요');
+  }
+
+  async function share(e) {
+    const data = { title: e.title, text: `${e.title}\n${e.place} · ${when(e)}`, url: shareUrl(e) };
+    try {
+      if (navigator.share) { await navigator.share(data); return; }
+      await navigator.clipboard.writeText(`${data.text}\n${data.url}`);
+      toast('링크를 복사했어요');
+    } catch (err) {
+      if (err?.name !== 'AbortError') toast('공유하지 못했어요');
+    }
   }
 
   // ── 바텀시트 ──
   const sheet = $('sheet');
-  const snaps = () => {
-    const vh = innerHeight;
-    return { peek: 168, half: Math.round(vh * 0.5), full: sheet.offsetHeight };
-  };
+  const snaps = () => ({ peek: 176, half: Math.round(innerHeight * 0.5), full: sheet.offsetHeight });
   let snap = 'peek';
   function setSheet(name) {
     snap = name;
@@ -246,6 +335,7 @@
     let startY = 0, startVis = 0, lastY = 0, lastT = 0, vel = 0, moved = false;
     const head = $('sheetHead');
     head.addEventListener('pointerdown', (ev) => {
+      if (ev.target.closest('button')) return;
       startY = lastY = ev.clientY; lastT = performance.now(); vel = 0; moved = false;
       startVis = snaps()[snap];
       sheet.classList.add('dragging');
@@ -281,13 +371,40 @@
     addEventListener('resize', () => setSheet(snap));
   })();
 
+  // 지도 빈 곳을 누르면 시트를 내린다 (상세 보기 중이면 목록으로)
+  map.on('click', () => {
+    if (state.selected) { history.state?.e ? history.back() : closeDetail(); }
+    setSheet('peek');
+  });
+
   // ── 내 위치 ──
+  // 지도 윗부분(필터 아래 ~ 시트 위)에 행사가 MIN_VISIBLE곳 이상 보이는 가장 가까운 줌을 고른다
+  function zoomFor(center) {
+    const list = filtered();
+    if (!list.length) return 14;
+    for (let z = 16; z >= 11; z--) {
+      const c = map.project(center, z);
+      const top = 110, bottom = innerHeight - 176;
+      const nw = map.unproject(L.point(c.x - innerWidth / 2, c.y - (innerHeight / 2 - top)), z);
+      const se = map.unproject(L.point(c.x + innerWidth / 2, c.y + (bottom - innerHeight / 2)), z);
+      const b = L.latLngBounds(nw, se);
+      if (list.filter((e) => b.contains([e.lat, e.lng])).length >= MIN_VISIBLE) return z;
+    }
+    return 11;
+  }
+  let centeredOnMe = false;
+  function centerOnMe() {
+    if (!state.me || !state.events.length || centeredOnMe) return;
+    centeredOnMe = true;
+    map.setView(state.me, zoomFor(state.me));
+  }
+
   function setMe(pos, recenter) {
     state.me = pos;
     if (!meMarker) {
       meMarker = L.marker(pos, { icon: L.divIcon({ html: '<div class="me"></div>', className: '', iconSize: [18, 18] }), zIndexOffset: 1000, interactive: false }).addTo(map);
     } else meMarker.setLatLng(pos);
-    if (recenter) map.setView(pos, 15);
+    if (recenter) centerOnMe();
     renderList();
   }
 
@@ -301,10 +418,9 @@
         const pos = [p.coords.latitude, p.coords.longitude];
         if (firstFix) {
           firstFix = false;
-          if (dist(pos, SEOUL) > 60e3) {
-            setMe(pos, false);
-            toast('서울 밖에 계셔서 서울 지도를 보여드려요');
-          } else setMe(pos, true);
+          const outside = dist(pos, SEOUL) > 60e3;
+          if (outside) toast('서울 밖에 계셔서 서울 지도를 보여드려요');
+          setMe(pos, !outside && !state.deepLink);
         } else setMe(pos, false);
       },
       () => {
@@ -316,9 +432,31 @@
     );
   }
   $('locateBtn').addEventListener('click', () => {
-    if (state.me) map.flyTo(state.me, 15, { duration: 0.6 });
+    if (state.me) map.flyTo(state.me, Math.max(map.getZoom(), zoomFor(state.me)), { duration: 0.6 });
     else { firstFix = true; locate(); }
   });
+
+  // ── 날씨 (Open-Meteo, 키 불필요) ──
+  const WMO = (c) => (c === 0 ? '☀️' : c <= 2 ? '🌤️' : c === 3 ? '☁️' : c <= 48 ? '🌫️' : c <= 67 || (c >= 80 && c <= 82) ? '🌧️' : c <= 77 || c >= 85 && c <= 86 ? '🌨️' : '⛈️');
+  let forecast = null;
+  async function loadWeather() {
+    try {
+      const url = 'https://api.open-meteo.com/v1/forecast?latitude=37.5665&longitude=126.978&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FSeoul&forecast_days=8';
+      const d = (await (await fetch(url)).json()).daily;
+      forecast = new Map(d.time.map((t, i) => [t, { code: d.weather_code[i], hi: Math.round(d.temperature_2m_max[i]), lo: Math.round(d.temperature_2m_min[i]), rain: d.precipitation_probability_max[i] }]));
+      renderWeather();
+    } catch { /* 날씨 없이도 동작 */ }
+  }
+  function renderWeather() {
+    if (!forecast) return;
+    const [from, to] = range(state.when);
+    const days = [...forecast.entries()].filter(([t]) => t >= from && t <= to).map(([, v]) => v);
+    if (!days.length) { $('weather').textContent = ''; return; }
+    const rain = Math.max(...days.map((v) => v.rain ?? 0));
+    const first = days[0];
+    $('weather').textContent = `${WMO(first.code)} ${first.lo}°/${first.hi}°${rain >= 30 ? ` · 비 ${rain}%` : ''}`;
+    $('indoorChip').classList.toggle('suggest', rain >= 50 && !state.indoorOnly);
+  }
 
   // ── 칩 ──
   function bindChips(containerId, attr, key) {
@@ -327,9 +465,10 @@
       if (!b) return;
       state[key] = b.dataset[attr];
       $(containerId).querySelectorAll(`[data-${attr}]`).forEach((x) => x.classList.toggle('on', x === b));
-      store('prefs', { label: state.label, when: state.when, freeOnly: state.freeOnly });
+      savePrefs();
       if (state.selected) closeDetail();
       renderMarkers();
+      renderWeather();
     });
   }
   bindChips('labelChips', 'label', 'label');
@@ -337,12 +476,18 @@
   $('freeChip').addEventListener('click', () => {
     state.freeOnly = !state.freeOnly;
     $('freeChip').classList.toggle('on', state.freeOnly);
-    store('prefs', { label: state.label, when: state.when, freeOnly: state.freeOnly });
+    savePrefs();
     renderMarkers();
+  });
+  $('indoorChip').addEventListener('click', () => {
+    state.indoorOnly = !state.indoorOnly;
+    $('indoorChip').classList.toggle('on', state.indoorOnly);
+    renderMarkers();
+    renderWeather();
   });
   const prefs = load('prefs', null);
   if (prefs) {
-    Object.assign(state, { label: prefs.label ?? 'all', when: prefs.when ?? 'today', freeOnly: !!prefs.freeOnly });
+    Object.assign(state, { label: prefs.label ?? 'all', when: prefs.when ?? 'today', freeOnly: !!prefs.freeOnly, sort: prefs.sort ?? 'near' });
     document.querySelectorAll('[data-label]').forEach((x) => x.classList.toggle('on', x.dataset.label === state.label));
     document.querySelectorAll('[data-when]').forEach((x) => x.classList.toggle('on', x.dataset.when === state.when));
     $('freeChip').classList.toggle('on', state.freeOnly);
@@ -361,13 +506,25 @@
   map.on('moveend', renderList);
   setSheet('peek');
   locate();
+  loadWeather();
   fetch('data/events.json', { cache: 'no-cache' })
     .then((r) => r.json())
     .then((data) => {
       state.events = data.events;
+      state.byId = new Map(data.events.map((e) => [e.id, e]));
       const updated = new Date(data.updatedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
       $('foot').textContent = `${updated} 업데이트 · 서울시 문화행사 정보 ${data.count}건${data.mode === 'sample' ? ' (미리보기 데이터)' : ''}`;
       renderMarkers();
+      if (!state.deepLink && state.me && dist(state.me, SEOUL) <= 60e3) centerOnMe();
+      const linked = state.deepLink && state.byId.get(state.deepLink);
+      if (linked) {
+        history.replaceState(null, '', location.pathname);
+        map.setView([linked.lat, linked.lng], 16);
+        openDetail(linked, { fly: true });
+      } else if (state.deepLink) {
+        history.replaceState(null, '', location.pathname);
+        toast('공유된 행사가 끝났거나 목록에서 빠졌어요');
+      }
     })
     .catch(() => {
       $('countText').textContent = '데이터를 불러오지 못했어요';

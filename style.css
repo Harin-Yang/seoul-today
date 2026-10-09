@@ -65,11 +65,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .chip[data-label="date"].on { background: var(--date); color: #fff; }
 .chip[data-label="solo"].on { background: var(--solo); color: #fff; }
 .chip[data-label="friends"].on { background: var(--friends); color: #fff; }
+.chip .n { font-weight: 500; opacity: .7; font-size: .85em; }
+.chip.suggest { background: #2f6bff; color: #fff; animation: nudge 1.6s ease-in-out 3; }
+@keyframes nudge { 50% { transform: scale(1.06); } }
 
 /* ── 내 위치 버튼 ── */
 .fab {
   position: fixed; right: 16px; z-index: 1000;
-  bottom: calc(var(--peek, 168px) + 14px);
+  bottom: calc(var(--peek, 176px) + 26px);
   width: 46px; height: 46px; border-radius: 50%; border: 0;
   background: var(--surface); color: var(--accent); box-shadow: var(--shadow);
   display: grid; place-items: center; transition: bottom .25s ease;
@@ -84,16 +87,21 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: var(--surface); border-radius: 18px 18px 0 0;
   box-shadow: 0 -4px 24px rgba(0, 0, 0, .16);
   display: flex; flex-direction: column;
-  transform: translateY(calc(92dvh - var(--peek, 168px)));
+  transform: translateY(calc(92dvh - var(--peek, 176px)));
   transition: transform .28s cubic-bezier(.2, .8, .2, 1);
   will-change: transform;
 }
 .sheet.dragging { transition: none; }
 .sheet-head { padding: 8px 16px 10px; touch-action: none; cursor: grab; }
 .grip { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 10px; }
-.sheet-title { display: flex; align-items: baseline; gap: 8px; }
-.sheet-title strong { font-size: 17px; }
-.sheet-title span { color: var(--muted); font-size: 13px; }
+.sheet-title { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+.sheet-title strong { font-size: 17px; white-space: nowrap; }
+.weather { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sort {
+  margin-left: auto; flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+  padding: 4px 10px; font-size: 13px; color: var(--text);
+}
+.sort::after { content: " ⇅"; color: var(--muted); }
 .sheet-body { flex: 1; overflow-y: auto; padding: 0 16px calc(var(--safe-bottom) + 24px); overscroll-behavior: contain; }
 
 .list { list-style: none; margin: 0; padding: 0; }
@@ -110,16 +118,20 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .meta { color: var(--muted); font-size: 13px; }
+.meta b { color: var(--text); font-weight: 600; }
+.heart { color: var(--date); }
+.muted { color: var(--muted); }
 .reason { font-size: 13px; margin-top: 4px; }
 .tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .tag { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; color: #fff; }
 .tag.date { background: var(--date); }
 .tag.solo { background: var(--solo); }
 .tag.friends { background: var(--friends); }
-.tag.free { background: var(--surface-2); color: var(--text); }
+.tag.plain { background: var(--surface-2); color: var(--text); }
 .tag.soon { background: #e53935; }
 
-.empty { color: var(--muted); text-align: center; padding: 28px 0; }
+.empty { color: var(--muted); text-align: center; padding: 28px 0; line-height: 1.7; }
+.empty .btn { display: inline-grid; margin-top: 10px; padding: 0 16px; }
 .foot { color: var(--muted); font-size: 12px; text-align: center; margin: 16px 0 0; }
 
 /* ── 상세 ── */
@@ -129,12 +141,18 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .detail dl { display: grid; grid-template-columns: 56px 1fr; gap: 6px 10px; margin: 14px 0; font-size: 14px; }
 .detail dt { color: var(--muted); }
 .detail dd { margin: 0; word-break: keep-all; overflow-wrap: anywhere; }
-.actions { display: grid; grid-template-columns: 1fr 1fr 52px; gap: 8px; margin-top: 8px; }
+.actions { display: grid; grid-template-columns: 1fr 1fr 52px; gap: 8px; margin-top: 14px; }
+.detail dd a { color: var(--accent); font-size: 13px; text-decoration: none; }
+.desc { font-size: 14px; line-height: 1.6; color: var(--text); background: var(--surface-2); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; word-break: keep-all; overflow-wrap: anywhere; }
+.links { display: flex; gap: 8px; }
+.links .btn { flex: 1; }
 .btn {
   display: grid; place-items: center; height: 46px; border-radius: 12px; border: 0;
   background: var(--surface-2); color: var(--text); text-decoration: none; font-weight: 600;
 }
 .btn.primary { background: var(--accent); color: #fff; }
+.btn.small { height: 38px; font-size: 14px; }
+.btn.icon { font-size: 20px; }
 .btn.saved { color: var(--date); }
 
 /* ── 지도 마커 ── */
@@ -146,7 +164,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .pin.date { background: var(--date); }
 .pin.solo { background: var(--solo); }
 .pin.friends { background: var(--friends); }
-.pin.active { outline: 3px solid var(--accent); outline-offset: 1px; }
+.pin.active { outline: 3px solid var(--accent); outline-offset: 1px; transform: rotate(-45deg) scale(1.15); }
+.pin { position: relative; }
+.pin.saved::after { content: "♥"; position: absolute; transform: rotate(45deg); top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%; background: #fff; color: var(--date); font-size: 11px; display: grid; place-items: center; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
 .cluster {
   display: grid; place-items: center; border-radius: 50%; color: #fff; font-weight: 800;
   background: rgba(23, 24, 28, .82); border: 3px solid rgba(255,255,255,.85); box-shadow: 0 2px 8px rgba(0,0,0,.3);
@@ -162,6 +182,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 :root[data-theme="dark"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9); }
 .leaflet-control-attribution { font-size: 10px; }
 .leaflet-top { top: calc(var(--safe-top) + 100px); }
+.leaflet-bottom { bottom: var(--peek, 176px); transition: bottom .25s ease; }
 
 .toast {
   position: fixed; left: 50%; top: calc(var(--safe-top) + 104px); transform: translateX(-50%); z-index: 1100;

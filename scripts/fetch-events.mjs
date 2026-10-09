@@ -2,12 +2,14 @@
 // 사용: SEOUL_API_KEY=xxxx node scripts/fetch-events.mjs
 // 키가 없으면 공개 샘플키로 "미리보기" 데이터를 만든다 (날짜별 5건씩, 일부만 수집됨).
 import { writeFile, mkdir } from 'node:fs/promises';
-import { classify } from './classify.mjs';
+import { classify, excludeReason, isOutdoor } from './classify.mjs';
+import { mergeSeries } from './series.mjs';
 
 const KEY = process.env.SEOUL_API_KEY?.trim();
 const BASE = 'http://openapi.seoul.go.kr:8088';
 const PAGE = 1000;
 const HORIZON_DAYS = 14; // 오늘부터 2주 안에 진행되는 행사까지 포함
+const DESC_MAX = 280;
 
 const kstToday = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
 const addDays = (d, n) => new Date(Date.parse(d) + n * 86400e3).toISOString().slice(0, 10);
@@ -65,27 +67,40 @@ function coords(r) {
   return [+lat.toFixed(6), +lng.toFixed(6)];
 }
 
+function cleanText(s) {
+  return String(s ?? '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function summary(r) {
+  const parts = [cleanText(r.PROGRAM), cleanText(r.ETC_DESC)].filter((p) => p && p !== '-' && p.length > 4);
+  const text = parts.join(' · ');
+  return text.length > DESC_MAX ? `${text.slice(0, DESC_MAX).replace(/\s\S*$/, '')}…` : text;
+}
+
 function normalize(r) {
-  const pos = coords(r);
-  if (!pos) return null;
-  const id = r.HMPG_ADDR?.match(/cultcode=(\d+)/)?.[1] ?? `${r.TITLE}|${r.PLACE}`;
   const c = classify(r);
-  if (!c) return null; // 어린이 전용 행사 등 제외
+  const pos = coords(r);
   return {
-    id,
-    title: r.TITLE.trim(),
+    id: r.HMPG_ADDR?.match(/cultcode=(\d+)/)?.[1] ?? `${r.TITLE}|${r.PLACE}`,
+    title: cleanText(r.TITLE),
     cat: r.CODENAME,
-    gu: r.GUNAME,
-    place: r.PLACE,
+    gu: r.GUNAME || '',
+    place: cleanText(r.PLACE),
     start: r.STRTDATE.slice(0, 10),
     end: r.END_DATE.slice(0, 10),
-    time: r.PRO_TIME || '',
-    fee: r.USE_FEE || '',
+    time: cleanText(r.PRO_TIME),
+    fee: cleanText(r.USE_FEE),
     free: r.IS_FREE === '무료',
-    target: r.USE_TRGT || '',
+    target: cleanText(r.USE_TRGT),
+    desc: summary(r),
     img: r.MAIN_IMG || '',
     url: r.HMPG_ADDR || r.ORG_LINK || '',
-    ticket: r.ORG_LINK || '',
+    ticket: r.ORG_LINK && r.ORG_LINK !== r.HMPG_ADDR ? r.ORG_LINK : '',
+    out: isOutdoor(r),
     lat: pos[0],
     lng: pos[1],
     labels: c.labels,
@@ -95,23 +110,32 @@ function normalize(r) {
 
 const today = kstToday();
 const horizon = addDays(today, HORIZON_DAYS);
+const maxEnd = addDays(today, 3 * 365);
 const { mode, rows } = await fetchAll(today);
 
+const stats = { raw: rows.length, past: 0, future: 0, badDate: 0, noCoord: 0, dup: 0, excluded: {}, merged: 0 };
 const seen = new Set();
-const events = [];
+const kept = [];
 for (const r of rows) {
   const start = r.STRTDATE?.slice(0, 10), end = r.END_DATE?.slice(0, 10);
-  if (!start || !end || end < today || start > horizon) continue;
+  if (!start || !end || end < start || end > maxEnd) { stats.badDate++; continue; }
+  if (end < today) { stats.past++; continue; }
+  if (start > horizon) { stats.future++; continue; }
+  if (!coords(r)) { stats.noCoord++; continue; }
+  const why = excludeReason(r);
+  if (why) { stats.excluded[why] = (stats.excluded[why] ?? 0) + 1; continue; }
   const e = normalize(r);
-  if (!e || seen.has(e.id)) continue;
+  if (seen.has(e.id)) { stats.dup++; continue; }
   seen.add(e.id);
-  events.push(e);
+  kept.push(e);
 }
-events.sort((a, b) => a.end.localeCompare(b.end));
+const events = mergeSeries(kept).sort((a, b) => a.end.localeCompare(b.end));
+stats.merged = kept.length - events.length;
 
 await mkdir(new URL('../data/', import.meta.url), { recursive: true });
 await writeFile(
   new URL('../data/events.json', import.meta.url),
-  JSON.stringify({ updatedAt: new Date().toISOString(), date: today, mode, count: events.length, events })
+  JSON.stringify({ updatedAt: new Date().toISOString(), date: today, mode, count: events.length, stats, events })
 );
-console.log(`${mode} 모드: 원본 ${rows.length}건 → 진행/예정 ${events.length}건 저장`);
+console.log(`${mode} 모드: 원본 ${rows.length}건 → ${events.length}건 저장`);
+console.log(JSON.stringify(stats));
