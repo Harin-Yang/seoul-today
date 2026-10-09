@@ -8,6 +8,8 @@ const BASE = 'https://apis.data.go.kr/B553457/cultureinfo';
 const ROWS = 100;
 const MAX_PAGES = 60;
 const MAX_DETAILS = 900;
+const GAP_MS = 150;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // 분류명 → 서울시 데이터와 같은 카테고리 체계
 function category(realm = '', service = '') {
@@ -54,13 +56,12 @@ export async function fetchCulture(today, keyRaw = process.env.DATA_GO_KR_KEY) {
   // 시/도 표기가 문서에 없어 두 가지를 시도한다
   let sido = '서울', first = await list(key, { ...base, sido, PageNo: '1' });
   if (!first.total) { sido = '서울특별시'; first = await list(key, { ...base, sido, PageNo: '1' }); }
+  // 초당 요청 제한(429)이 있어 페이지는 하나씩 천천히 받는다
   const pages = Math.min(Math.ceil(first.total / ROWS), MAX_PAGES);
   const items = [...first.items];
-  for (let p = 2; p <= pages; p += 4) {
-    const batch = await Promise.all(
-      Array.from({ length: Math.min(4, pages - p + 1) }, (_, i) => list(key, { ...base, sido, PageNo: String(p + i) })),
-    );
-    batch.forEach((b) => items.push(...b.items));
+  for (let p = 2; p <= pages; p++) {
+    await sleep(GAP_MS);
+    items.push(...(await list(key, { ...base, sido, PageNo: String(p) })).items);
   }
 
   const stats = { ...newStats(), raw: items.length, apiTotal: first.total, sido };
@@ -79,7 +80,7 @@ export async function fetchCulture(today, keyRaw = process.env.DATA_GO_KR_KEY) {
   }
 
   // 상세(설명·요금·링크)는 걸러진 후보만 조회
-  const details = await mapLimit(candidates.slice(0, MAX_DETAILS), 6, ({ it }) => detail(key, it.seq));
+  const details = await mapLimit(candidates.slice(0, MAX_DETAILS), 2, async ({ it }) => { await sleep(GAP_MS); return detail(key, it.seq); });
   stats.detailErrors = details.filter((d) => d?.error).length;
 
   const events = [];

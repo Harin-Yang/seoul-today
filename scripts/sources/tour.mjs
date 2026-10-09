@@ -54,9 +54,9 @@ export async function fetchTour(today, keyRaw = process.env.DATA_GO_KR_KEY) {
   }
 
   // 소개(시간·요금·장소)와 개요는 후보만 조회
-  const intros = await mapLimit(candidates, 4, ({ it }) =>
+  const intros = await mapLimit(candidates, 2, ({ it }) =>
     call(key, 'detailIntro2', { contentId: it.contentid, contentTypeId: it.contenttypeid || '15' }).then((r) => r.items[0] ?? {}));
-  const commons = await mapLimit(candidates, 4, ({ it }) =>
+  const commons = await mapLimit(candidates, 2, ({ it }) =>
     call(key, 'detailCommon2', { contentId: it.contentid }).then((r) => r.items[0] ?? {}));
   stats.detailErrors = [...intros, ...commons].filter((d) => d?.error).length;
 

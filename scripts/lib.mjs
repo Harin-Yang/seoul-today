@@ -45,6 +45,7 @@ export async function getText(url, { retries = 3, timeout = 30000 } = {}) {
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(timeout) });
       const text = await res.text();
+      if (res.status === 429 && attempt < retries) { await new Promise((r) => setTimeout(r, 3000 * attempt)); continue; }
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
       return text;
     } catch (err) {
