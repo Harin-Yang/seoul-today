@@ -90,7 +90,8 @@ export const xmlTag = (xml, tag) => xml.match(new RegExp(`<${tag}>([\\s\\S]*?)</
 /** data.go.kr 키는 인코딩/디코딩 두 형태가 있어서 디코딩 형태로 맞춘다 */
 export function decodeKey(k) {
   if (!k) return '';
-  const t = k.trim();
+  // 복사할 때 딸려 온 공백·줄바꿈·눈에 안 보이는 문자(zero-width 등) 제거
+  const t = k.replace(/[\s​-‍⁠﻿]/g, '');
   try { return t.includes('%') ? decodeURIComponent(t) : t; } catch { return t; }
 }
 
