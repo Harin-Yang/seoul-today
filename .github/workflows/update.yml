@@ -33,11 +33,16 @@ jobs:
         env:
           SEOUL_API_KEY: ${{ secrets.SEOUL_API_KEY }}
           DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
+      - name: 가보기 좋은 곳 수집 (관광공사)
+        run: node scripts/fetch-places.mjs
+        continue-on-error: true
+        env:
+          DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
       - name: 변경사항 커밋
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/events.json
+          git add data/
           git diff --cached --quiet && exit 0
           git commit -m "data: $(TZ=Asia/Seoul date +%F) 이벤트 업데이트"
           # 수집 중에 다른 커밋이 올라왔으면 그 위로 올려서 다시 push
