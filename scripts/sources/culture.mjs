@@ -4,7 +4,7 @@ import {
   isoDate, mapLimit, newStats, parseXmlItems, seoulCoords, xmlTag,
 } from '../lib.mjs';
 
-const BASE = 'https://apis.data.go.kr/B553457/cultureinfo';
+const BASE = 'http://apis.data.go.kr/B553457/cultureinfo';
 const ROWS = 100;
 const MAX_PAGES = 60;
 const MAX_DETAILS = 900;

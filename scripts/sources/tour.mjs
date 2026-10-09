@@ -4,7 +4,7 @@ import {
   isoDate, mapLimit, newStats, seoulCoords,
 } from '../lib.mjs';
 
-const BASE = 'https://apis.data.go.kr/B551011/KorService2';
+const BASE = 'http://apis.data.go.kr/B551011/KorService2';
 const COMMON = { MobileOS: 'ETC', MobileApp: 'SeoulToday', _type: 'json' };
 const ROWS = 100;
 

@@ -49,9 +49,10 @@ export async function getText(url, { retries = 3, timeout = 30000 } = {}) {
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
       return text;
     } catch (err) {
-      // 연결 자체가 안 되면(HTTP 응답 없음) http로 한 번 더 시도한다
-      if (attempt === retries && err.cause && url.startsWith('https://apis.data.go.kr')) {
-        try { return await getText(url.replace('https://', 'http://'), { retries: 1, timeout }); } catch { /* 아래에서 원래 오류 보고 */ }
+      // 연결 자체가 안 되면(HTTP 응답 없음) 다른 프로토콜(http↔https)로 한 번 더 시도한다
+      if (attempt === retries && err.cause && url.includes('://apis.data.go.kr') && !url.includes('#swapped')) {
+        const other = url.startsWith('https://') ? url.replace('https://', 'http://') : url.replace('http://', 'https://');
+        try { return await getText(`${other}#swapped`, { retries: 1, timeout }); } catch { /* 아래에서 원래 오류 보고 */ }
       }
       if (attempt === retries) {
         // "fetch failed"만으로는 원인을 알 수 없어 네트워크 오류 코드를 붙인다 (키는 가린다)
