@@ -14,6 +14,8 @@
   const SRC = { seoul: '서울시 문화행사 정보', culture: '문화포털(한국문화정보원)', tour: '한국관광공사' };
   const catEmoji = (cat) => CAT_EMOJI[cat] ?? (cat?.startsWith('축제') ? '🎪' : '✨');
   const LIST_LIMIT = 80;
+  // 상단 검색·필터 영역 아래 끝 (지도에서 가려지지 않는 영역 계산용)
+  const topH = () => (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 110) + 8;
   const WALK_M_PER_MIN = 67;
   const MIN_VISIBLE = 8;
 
@@ -106,7 +108,7 @@
   function pinIcon(e, active) {
     return L.divIcon({
       html: `<div class="pin ${primaryLabel(e)}${active ? ' active' : ''}${state.saved.has(e.id) ? ' saved' : ''}"><span>${catEmoji(e.cat)}</span></div>`,
-      className: '', iconSize: [34, 34], iconAnchor: [17, 34],
+      className: '', iconSize: [36, 44], iconAnchor: [18, 44],
     });
   }
 
@@ -216,7 +218,7 @@
     const near = list.map((e) => ({ e, d: dist(o, [e.lat, e.lng]) })).sort((a, b) => a.d - b.d).slice(0, n);
     const pts = near.map(({ e }) => [e.lat, e.lng]);
     if (state.me) pts.push(state.me);
-    map.fitBounds(pts, { paddingTopLeft: [40, 120], paddingBottomRight: [40, innerHeight * 0.5 + 20], maxZoom: 16 });
+    map.fitBounds(pts, { paddingTopLeft: [40, topH() + 10], paddingBottomRight: [40, innerHeight * 0.5 + 20], maxZoom: 16 });
   }
 
   $('list').addEventListener('click', (ev) => {
@@ -302,8 +304,6 @@
     $('detail').hidden = false;
     $('countText').textContent = '상세 정보';
     $('sortBtn').hidden = true;
-    $('searchBox').hidden = true;
-    $('weather').hidden = true;
     $('sheetBody').scrollTop = 0;
     $('backBtn').onclick = () => (history.state?.e ? history.back() : closeDetail());
     $('detail').querySelectorAll('.near-item').forEach((b) => (b.onclick = () => {
@@ -320,7 +320,7 @@
 
   // 시트(화면 절반)와 상단 필터에 가리지 않는 영역의 가운데로 지점을 옮긴다
   function showAboveSheet(latlng) {
-    const top = 104, bottom = innerHeight * 0.5;
+    const top = topH(), bottom = innerHeight * 0.5;
     const target = L.point(innerWidth / 2, (top + bottom) / 2);
     const now = map.latLngToContainerPoint(latlng);
     map.panBy(now.subtract(target), { duration: 0.4 });
@@ -332,8 +332,6 @@
     $('detail').hidden = true;
     $('list').hidden = false;
     $('sortBtn').hidden = false;
-    $('searchBox').hidden = false;
-    $('weather').hidden = false;
     renderList();
   }
 
@@ -432,7 +430,7 @@
     if (!list.length) return 14;
     for (let z = 16; z >= 11; z--) {
       const c = map.project(center, z);
-      const top = 110, bottom = innerHeight - 176;
+      const top = topH(), bottom = innerHeight - 176;
       const nw = map.unproject(L.point(c.x - innerWidth / 2, c.y - (innerHeight / 2 - top)), z);
       const se = map.unproject(L.point(c.x + innerWidth / 2, c.y + (bottom - innerHeight / 2)), z);
       const b = L.latLngBounds(nw, se);
@@ -520,7 +518,13 @@
     });
   }
   bindChips('labelChips', 'label', 'label');
-  bindChips('whenChips', 'when', 'when');
+  $('whenSelect').addEventListener('change', (ev) => {
+    state.when = ev.target.value;
+    savePrefs();
+    if (state.selected) closeDetail();
+    renderMarkers();
+    renderWeather();
+  });
   $('freeChip').addEventListener('click', () => {
     state.freeOnly = !state.freeOnly;
     $('freeChip').classList.toggle('on', state.freeOnly);
@@ -547,7 +551,7 @@
     const hits = state.query ? filtered() : [];
     if (!hits.length) return;
     setSheet('half');
-    map.fitBounds(hits.slice(0, 60).map((e) => [e.lat, e.lng]), { paddingTopLeft: [40, 120], paddingBottomRight: [40, innerHeight * 0.5 + 20], maxZoom: 16 });
+    map.fitBounds(hits.slice(0, 60).map((e) => [e.lat, e.lng]), { paddingTopLeft: [40, topH() + 10], paddingBottomRight: [40, innerHeight * 0.5 + 20], maxZoom: 16 });
   });
   $('indoorChip').addEventListener('click', () => {
     state.indoorOnly = !state.indoorOnly;
@@ -559,7 +563,7 @@
   if (prefs) {
     Object.assign(state, { label: prefs.label ?? 'all', when: prefs.when ?? 'today', freeOnly: !!prefs.freeOnly, sort: prefs.sort ?? 'near' });
     document.querySelectorAll('[data-label]').forEach((x) => x.classList.toggle('on', x.dataset.label === state.label));
-    document.querySelectorAll('[data-when]').forEach((x) => x.classList.toggle('on', x.dataset.when === state.when));
+    $('whenSelect').value = state.when;
     $('freeChip').classList.toggle('on', state.freeOnly);
   }
 
@@ -571,6 +575,8 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => (t.hidden = true), 2600);
   }
+
+  $('todayText').textContent = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', weekday: 'short' }).format(new Date());
 
   // ── 오프라인 지원 ──
   if ('serviceWorker' in navigator && location.protocol === 'https:') {

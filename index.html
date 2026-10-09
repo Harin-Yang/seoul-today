@@ -1,12 +1,11 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-skin="soft">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>오늘 어디 가지</title>
   <meta name="description" content="내 주변 서울 문화행사를 데이트·혼놀·친구와로 골라보는 지도">
-  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#16171b" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#fbf7f4">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="오늘 어디">
@@ -16,33 +15,54 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
   <link rel="stylesheet" href="style.css">
+  <script>
+    // 시안 비교용: ?skin=soft|editorial|night (선택은 이 기기에 기억)
+    (() => {
+      const q = new URLSearchParams(location.search).get('skin');
+      let s = q;
+      try { if (q) localStorage.setItem('skin', q); else s = localStorage.getItem('skin'); } catch { /* 무시 */ }
+      if (['soft', 'editorial', 'night'].includes(s)) document.documentElement.dataset.skin = s;
+    })();
+  </script>
 </head>
 <body>
   <div id="map" aria-label="주변 이벤트 지도"></div>
 
   <header class="topbar">
-    <nav class="chips" id="labelChips" aria-label="라벨">
+    <div class="searchbar">
+      <label class="search" id="searchBox">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="searchInput" type="search" placeholder="오늘 어디 가지? 행사·장소 검색" enterkeyhint="search" autocomplete="off">
+      </label>
+      <div class="today"><b id="todayText"></b><span id="weather" class="weather"></span></div>
+    </div>
+    <nav class="seg" id="labelChips" aria-label="누구와">
       <button class="chip on" data-label="all">전체</button>
-      <button class="chip" data-label="date">💑 데이트<span class="n"></span></button>
-      <button class="chip" data-label="solo">🎧 혼놀<span class="n"></span></button>
-      <button class="chip" data-label="friends">👯 친구와<span class="n"></span></button>
-      <button class="chip" data-label="saved">♥ 찜<span class="n"></span></button>
+      <button class="chip" data-label="date"><i>💑</i>데이트<span class="n"></span></button>
+      <button class="chip" data-label="solo"><i>🎧</i>혼놀<span class="n"></span></button>
+      <button class="chip" data-label="friends"><i>👯</i>친구와<span class="n"></span></button>
+      <button class="chip heart" data-label="saved" aria-label="찜">♥<span class="n"></span></button>
     </nav>
-    <nav class="chips small" id="whenChips" aria-label="기간">
-      <button class="chip on" data-when="today">오늘</button>
-      <button class="chip" data-when="weekend">이번 주말</button>
-      <button class="chip" data-when="week">7일 내</button>
-      <button class="chip toggle" id="freeChip">무료만</button>
+    <nav class="chips" id="whenChips" aria-label="필터">
+      <label class="chip select">
+        <select id="whenSelect" aria-label="기간">
+          <option value="today">오늘</option>
+          <option value="weekend">이번 주말</option>
+          <option value="week">7일 내</option>
+        </select>
+      </label>
+      <button class="chip toggle" id="freeChip">무료</button>
       <button class="chip toggle" id="nightChip">🌙 저녁</button>
-      <button class="chip toggle" id="indoorChip">☂ 실내만</button>
+      <button class="chip toggle" id="indoorChip">☂ 실내</button>
     </nav>
   </header>
 
   <button class="fab" id="locateBtn" aria-label="내 위치로">
-    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2 4.5 20.3l.7.7L12 18l6.8 3 .7-.7z" fill="currentColor" transform="rotate(45 12 12)"/></svg>
   </button>
 
   <section class="sheet" id="sheet" aria-label="이벤트 목록">
@@ -50,15 +70,10 @@
       <div class="grip"></div>
       <div class="sheet-title">
         <strong id="countText">불러오는 중…</strong>
-        <span id="weather" class="weather"></span>
         <button class="sort" id="sortBtn" type="button">가까운 순</button>
       </div>
     </div>
     <div class="sheet-body" id="sheetBody">
-      <label class="search" id="searchBox">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <input id="searchInput" type="search" placeholder="행사·장소 검색 (서울 전체)" enterkeyhint="search" autocomplete="off">
-      </label>
       <ul class="list" id="list"></ul>
       <article class="detail" id="detail" hidden></article>
       <p class="foot" id="foot"></p>
