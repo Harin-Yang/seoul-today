@@ -21,6 +21,8 @@ const RULES = {
 // ── 일반인이 그냥 놀러 가기 어려운 행사 ──
 const KIDS = /어린이|유아|키즈|초등|아동|인형극|가족극|영유아|미취학/;
 const ADULT_OK = /성인|누구나|전체|제한\s?없|일반|청년|시민|대학생|전\s?연령/;
+// 제목이 확실히 아이 대상이면 대상이 "누구나"여도 제외 (성인을 따로 명시한 경우만 허용)
+const KIDS_STRONG = /어린이\s?(오페라|뮤지컬|연극|공연|해설사|축제|페스티벌|체험|미술관|박물관|도서관|열람실)|키즈|유아|영유아|인형극|가족극|가족\s?(공연|뮤지컬|축제|음악회)|동화|그림책\s?(놀이|체험)|서울상상나라|꿈나무/;
 const NOT_OUTING_TITLE = /모집|아카데미|인력\s?양성|양성\s?과정|정규\s?강좌|수강생|특수학급|북\s?큐레이션|온라인|일자리|취업|심포지엄|학술대회|어린이열람실/;
 // 교육/체험 중 여러 주에 걸친 기수제 강좌 등
 const NOT_OUTING_EDU = /교실|진로\s?탐색|지혜학교|인생학교|축제학교|문화예술교육|예술교육|지원사업|\d+\s?기\]|\[\d+\s?기|\d+\s?기,|\d+\s?기\s|사서|정기\s?예술교육|분기/;
@@ -75,6 +77,7 @@ export function excludeReason(r) {
   const title = r.TITLE || '';
   const target = (r.USE_TRGT || '').trim();
   if ((KIDS.test(title) || KIDS.test(target)) && !ADULT_OK.test(target)) return 'kids';
+  if (KIDS_STRONG.test(`${title} ${r.PLACE ?? ''}`) && !/성인/.test(target)) return 'kids';
   if (NOT_OUTING_TITLE.test(title)) return 'not-outing-title';
   if (r.CODENAME === '교육/체험' && NOT_OUTING_EDU.test(title)) return 'not-outing-edu';
   if (RESTRICTED_TARGET.test(target) && !/누구나/.test(target)) return 'restricted-target';

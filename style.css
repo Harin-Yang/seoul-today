@@ -57,6 +57,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   scrollbar-width: none; pointer-events: auto;
 }
 .chips::-webkit-scrollbar { display: none; }
+/* 오른쪽 끝을 흐리게 해서 옆으로 더 있다는 걸 알려준다 */
+.chips { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); padding-right: 32px; }
 .chip {
   flex: none; border: 0; border-radius: 999px; padding: 8px 14px;
   background: var(--surface); box-shadow: var(--shadow); font-weight: 600; white-space: nowrap;
