@@ -238,6 +238,16 @@
   }
   const shareUrl = (e) => `${location.origin}${location.pathname}?e=${encodeURIComponent(e.id)}`;
 
+  // 걸어서 15분 안에 있는, 같은 기간에 갈 수 있는 다른 행사 (같은 장소는 제외)
+  function nearbyFor(e, n = 3) {
+    return baseFiltered()
+      .filter((x) => x.id !== e.id && x.place !== e.place)
+      .map((x) => ({ x, d: dist([e.lat, e.lng], [x.lat, x.lng]) }))
+      .filter(({ d }) => d * 1.3 / WALK_M_PER_MIN <= 15)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, n);
+  }
+
   function openDetail(e, { fly = false, push = true } = {}) {
     if (push) {
       if (state.selected) history.replaceState({ e: e.id }, '', `?e=${encodeURIComponent(e.id)}`);
@@ -275,6 +285,14 @@
         <a class="btn" href="${esc(e.url)}" target="_blank" rel="noopener">상세 정보</a>
         ${e.ticket ? `<a class="btn" href="${esc(e.ticket)}" target="_blank" rel="noopener">예매·신청</a>` : ''}
       </div>
+      ${(() => {
+        const near = nearbyFor(e);
+        return near.length ? `<section class="near"><h4>근처에서 같이 가기 좋은 곳</h4>${near.map(({ x, d }) => `
+          <button class="near-item" data-id="${esc(x.id)}" type="button">
+            <span class="near-emoji">${catEmoji(x.cat)}</span>
+            <span class="near-body"><b>${esc(clip(x.title, 34))}</b><small>${fmtDist(d)} · ${esc(when(x))}${x.night ? ' · 🌙 저녁' : ''}</small></span>
+          </button>`).join('')}</section>` : '';
+      })()}
       <p class="src">출처: ${[e.src ?? 'seoul', ...(e.alt ?? [])].map((s) => SRC[s] ?? s).join(' · ')}</p>
       ${e.img ? `<img class="poster" src="${esc(e.img.replace('thumb=Y', 'thumb=N'))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}`;
     $('list').hidden = true;
@@ -285,6 +303,10 @@
     $('weather').hidden = true;
     $('sheetBody').scrollTop = 0;
     $('backBtn').onclick = () => (history.state?.e ? history.back() : closeDetail());
+    $('detail').querySelectorAll('.near-item').forEach((b) => (b.onclick = () => {
+      const x = state.byId.get(b.dataset.id);
+      if (x) openDetail(x, { fly: true });
+    }));
     $('saveBtn').onclick = () => toggleSave(e);
     $('shareBtn').onclick = () => share(e);
     setSheet('half');

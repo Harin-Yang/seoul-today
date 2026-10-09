@@ -143,6 +143,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* ── 상세 ── */
 .detail .back { border: 0; background: none; color: var(--muted); padding: 4px 0 10px; }
 .src { color: var(--muted); font-size: 12px; margin: 14px 0 0; }
+.near { margin-top: 18px; }
+.near h4 { margin: 0 0 8px; font-size: 15px; }
+.near-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 6px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+}
+.near-emoji { font-size: 20px; }
+.near-body { display: flex; flex-direction: column; min-width: 0; }
+.near-body b { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.near-body small { color: var(--muted); font-size: 12px; }
 .detail .poster { display: block; width: 100%; margin-top: 16px; border-radius: 12px; background: var(--surface-2); }
 .detail h2 { font-size: 19px; margin: 12px 0 6px; line-height: 1.35; }
 .detail dl { display: grid; grid-template-columns: 56px 1fr; gap: 6px 10px; margin: 14px 0; font-size: 14px; }
