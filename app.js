@@ -2,6 +2,8 @@
   'use strict';
 
   const SEOUL = [37.5665, 126.978];
+  const HOME = [37.47258, 127.04243]; // 위치를 모를 때 기준: 언남고 (서초구 양재동)
+  const HOME_NAME = '언남고';
   const LABELS = {
     date: { name: '데이트', emoji: '💑' },
     solo: { name: '혼놀', emoji: '🎧' },
@@ -11,8 +13,9 @@
     '전시/미술': '🎨', '콘서트': '🎤', '클래식': '🎻', '독주/독창회': '🎻', '국악': '🥁', '무용': '💃',
     '뮤지컬/오페라': '🎭', '연극': '🎭', '영화': '🎬', '교육/체험': '✋', '기타': '✨',
   };
-  const SRC = { seoul: '서울시 문화행사 정보', culture: '문화포털(한국문화정보원)', tour: '한국관광공사' };
+  const SRC = { seoul: '서울시 문화행사 정보', culture: '문화포털(한국문화정보원)', tour: '한국관광공사', place: '한국관광공사 관광정보' };
   const catEmoji = (cat) => CAT_EMOJI[cat] ?? (cat?.startsWith('축제') ? '🎪' : '✨');
+  const emojiOf = (e) => e.emoji ?? catEmoji(e.cat);
   const LIST_LIMIT = 80;
   // 상단 검색·필터 영역 아래 끝 (지도에서 가려지지 않는 영역 계산용)
   const topH = () => (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 110) + 8;
@@ -30,6 +33,9 @@
     nightOnly: false,
     query: '',
     sort: 'near',
+    places: [],
+    showPlaces: !!load('showPlaces', false),
+    locFailed: false,
     me: null,
     selected: null,
     saved: new Set(load('saved', [])),
@@ -61,6 +67,7 @@
   const daysLeft = (end) => Math.round((Date.parse(end) - Date.parse(today)) / 864e5);
   const shortDate = (s) => `${+s.slice(5, 7)}.${+s.slice(8, 10)}`;
   function when(e) {
+    if (e.isPlace) return '언제든';
     if (e.start > today) return e.start === tomorrow ? '내일 시작' : `${shortDate(e.start)} 시작`;
     if (e.end === today) return e.start === today ? '오늘만' : '오늘까지';
     return `~${shortDate(e.end)}`;
@@ -94,8 +101,14 @@
       .replace(/\s+/g, ' ')
       .trim();
   }
+  const whereOf = (e) => (e.isPlace ? e.gu || '서울' : mainPlace(e.place) || e.gu);
   // 제목 앞의 [기관명]은 목록에서 떼어낸다
   const shortTitle = (t) => t.replace(/^\s*\[[^\]]{1,20}\]\s*/, '') || t;
+  // 웹에서 후기 찾기: 행사는 제목, 장소는 이름 (+구)
+  const searchTerm = (e) => (e.isPlace ? `${e.title} ${e.gu}` : shortTitle(e.title)).trim();
+  const blogUrl = (e) => `https://m.search.naver.com/search.naver?where=m_blog&query=${encodeURIComponent(searchTerm(e))}`;
+  const webUrl = (e) => `https://m.search.naver.com/search.naver?query=${encodeURIComponent(searchTerm(e))}`;
+  const instaUrl = (e) => `https://www.instagram.com/explore/tags/${encodeURIComponent(shortTitle(e.title).replace(/[^0-9A-Za-z가-힣]/g, ''))}/`;
   function summary(e) {
     const d = (e.desc ?? '').replace(/\s+/g, ' ').trim();
     if (d) {
@@ -115,7 +128,7 @@
   const clip = (s, n) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
   // ── 지도 ──
-  const map = L.map('map', { zoomControl: false, attributionControl: true }).setView(SEOUL, 12);
+  const map = L.map('map', { zoomControl: false, attributionControl: true }).setView(HOME, 14);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -140,7 +153,7 @@
   }
   function pinIcon(e, active) {
     return L.divIcon({
-      html: `<div class="pin ${primaryLabel(e)}${active ? ' active' : ''}${state.saved.has(e.id) ? ' saved' : ''}"><span>${catEmoji(e.cat)}</span></div>`,
+      html: `<div class="pin ${primaryLabel(e)}${e.isPlace ? ' place' : ''}${active ? ' active' : ''}${state.saved.has(e.id) ? ' saved' : ''}"><span>${emojiOf(e)}</span></div>`,
       className: '', iconSize: [36, 44], iconAnchor: [18, 44],
     });
   }
@@ -155,13 +168,14 @@
     return days;
   }
   const closedAll = (e, days) => days && e.closed && days.every((d) => e.closed.includes(d));
-  const norm = (s) => s.toLowerCase().replace(/s+/g, '');
+  const norm = (s) => s.toLowerCase().replace(/\s+/g, '');
   function baseFiltered() {
     const [from, to] = range(state.when);
     const days = rangeDays();
     const q = norm(state.query);
-    // 검색 중에는 기간과 상관없이 2주 안의 모든 행사에서 찾는다
-    return state.events.filter((e) =>
+    const pool = state.showPlaces ? state.events.concat(state.places) : state.events;
+    // 검색 중에는 기간과 상관없이 2주 안의 모든 행사에서 찾는다 (장소는 기간 없이 항상 포함)
+    return pool.filter((e) =>
       (q || (e.start <= to && e.end >= from && !closedAll(e, days))) &&
       (!state.freeOnly || e.free) &&
       (!state.indoorOnly || !e.out) &&
@@ -189,7 +203,8 @@
   }
 
   // ── 목록 ──
-  const origin = () => state.me ?? [map.getCenter().lat, map.getCenter().lng];
+  // 거리 기준: 내 위치(서울 안일 때) → 없으면 지도 중심
+  const origin = () => (state.me && dist(state.me, SEOUL) <= 60e3 ? state.me : [map.getCenter().lat, map.getCenter().lng]);
 
   function tagsHtml(e) {
     const left = daysLeft(e.end);
@@ -233,7 +248,7 @@
       <li class="item" data-id="${esc(e.id)}">
         <img class="thumb" src="${esc(e.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">
         <div class="item-body">
-          <div class="kicker">${catEmoji(e.cat)} ${esc(catShort(e.cat))} · ${esc(clip(mainPlace(e.place) || e.gu, 22))}</div>
+          <div class="kicker">${emojiOf(e)} ${esc(catShort(e.cat))} · ${esc(clip(whereOf(e), 22))}</div>
           <h3>${state.saved.has(e.id) ? '<span class="heart">♥</span> ' : ''}${esc(shortTitle(e.title))}</h3>
           ${summary(e) ? `<p class="summary">${esc(summary(e))}</p>` : ''}
           <div class="meta"><b>${fmtDist(d)}</b> · ${esc(when(e))}${priceShort(e) ? ` · ${esc(priceShort(e))}` : ''}</div>
@@ -300,7 +315,7 @@
     const period = e.start === e.end ? e.start : `${e.start} ~ ${e.end}`;
     $('detail').innerHTML = `
       <button class="back" id="backBtn">‹ 목록</button>
-      <div class="kicker">${catEmoji(e.cat)} ${esc(catShort(e.cat))} · ${esc(mainPlace(e.place) || e.place)}</div>
+      <div class="kicker">${emojiOf(e)} ${esc(catShort(e.cat))} · ${esc(whereOf(e) || e.place)}</div>
       <h2>${esc(e.title)}</h2>
       ${e.desc ? `<p class="desc clamp" id="descText">${esc(e.desc)}</p>` : ''}
       ${tagsHtml(e)}
@@ -309,7 +324,11 @@
         <button class="btn" id="shareBtn" type="button">공유</button>
         <button class="btn icon ${saved ? 'saved' : ''}" id="saveBtn" type="button" aria-label="찜">${saved ? '♥' : '♡'}</button>
       </div>
-      <dl>
+      ${e.isPlace ? `<dl>
+        <dt>주소</dt><dd>${esc(e.addr)} <span class="muted">${d.replace(/^ · /, '')}</span><br><a href="${naver}" target="_blank" rel="noopener" id="naverLink">네이버지도에서 보기</a></dd>
+        ${e.tel ? `<dt>전화</dt><dd><a href="tel:${esc(e.tel.replace(/[^0-9-]/g, ''))}">${esc(e.tel)}</a></dd>` : ''}
+        <dt>분류</dt><dd>${emojiOf(e)} ${esc(e.cat)} · ${esc(e.type)}</dd>
+      </dl>` : `<dl>
         <dt>기간</dt><dd>${esc(period)}${e.start > today || e.end === today ? ` <span class="muted">(${esc(when(e))})</span>` : ''}</dd>
         ${e.time ? `<dt>시간</dt><dd>${esc(e.time)}</dd>` : ''}
         ${e.closed ? `<dt>휴관</dt><dd>${e.closed.map((d) => '일월화수목금토'[d]).join('·')}요일${e.closed.includes(new Date(today + 'T12:00:00+09:00').getUTCDay()) ? ' <span class="tag soon">오늘 휴관</span>' : ''}</dd>` : ''}
@@ -317,17 +336,23 @@
         <dt>요금</dt><dd>${esc(e.fee || (e.free ? '무료' : '-'))}</dd>
         ${e.target ? `<dt>대상</dt><dd>${esc(e.target)}</dd>` : ''}
         <dt>분류</dt><dd>${catEmoji(e.cat)} ${esc(e.cat)}${e.out ? ' · 야외' : ''}</dd>
-      </dl>
+      </dl>`}
       <div class="links">
         <a class="btn" href="${esc(e.url)}" target="_blank" rel="noopener">상세 정보</a>
         ${e.ticket ? `<a class="btn" href="${esc(e.ticket)}" target="_blank" rel="noopener">예매·신청</a>` : ''}
+      </div>
+      <div class="web">
+        <span>후기 찾아보기</span>
+        <a href="${blogUrl(e)}" target="_blank" rel="noopener">📝 블로그</a>
+        <a href="${instaUrl(e)}" target="_blank" rel="noopener">📷 인스타그램</a>
+        <a href="${webUrl(e)}" target="_blank" rel="noopener">🔎 웹 검색</a>
       </div>
       ${(() => {
         const near = nearbyFor(e);
         return near.length ? `<section class="near"><h4>근처에서 같이 가기 좋은 곳</h4>${near.map(({ x, d }) => `
           <button class="near-item" data-id="${esc(x.id)}" type="button">
-            <span class="near-emoji">${catEmoji(x.cat)}</span>
-            <span class="near-body"><b>${esc(clip(shortTitle(x.title), 34))}</b><small>${fmtDist(d)} · ${esc(when(x))}${x.night ? ' · 🌙 저녁' : ''}</small></span>
+            <span class="near-emoji">${emojiOf(x)}</span>
+            <span class="near-body"><b>${esc(clip(shortTitle(x.title), 34))}</b><small>${fmtDist(d)} · ${x.isPlace ? esc(catShort(x.cat)) : esc(when(x))}${x.night ? ' · 🌙 저녁' : ''}</small></span>
           </button>`).join('')}</section>` : '';
       })()}
       <p class="src">출처: ${[e.src ?? 'seoul', ...(e.alt ?? [])].map((s) => SRC[s] ?? s).join(' · ')}</p>
@@ -396,7 +421,7 @@
   }
 
   async function share(e) {
-    const data = { title: e.title, text: `${e.title}\n${e.place} · ${when(e)}`, url: shareUrl(e) };
+    const data = { title: e.title, text: `${e.title}\n${e.isPlace ? e.addr : `${e.place} · ${when(e)}`}`, url: shareUrl(e) };
     try {
       if (navigator.share) { await navigator.share(data); return; }
       await navigator.clipboard.writeText(`${data.text}\n${data.url}`);
@@ -487,6 +512,12 @@
     centeredOnMe = true;
     map.setView(state.me, zoomFor(state.me));
   }
+  // 위치를 못 쓰면 언남고를 기준으로
+  function centerOnHome() {
+    if (!state.events.length || centeredOnMe || state.deepLink) return;
+    centeredOnMe = true;
+    map.setView(HOME, zoomFor(HOME));
+  }
 
   function setMe(pos, recenter) {
     state.me = pos;
@@ -508,14 +539,20 @@
         if (firstFix) {
           firstFix = false;
           const outside = dist(pos, SEOUL) > 60e3;
-          if (outside) toast('서울 밖에 계셔서 서울 지도를 보여드려요');
-          setMe(pos, !outside && !state.deepLink);
+          if (outside) {
+            toast(`서울 밖에 계셔서 ${HOME_NAME} 주변을 보여드려요`);
+            state.locFailed = true;
+            setMe(pos, false);
+            centerOnHome();
+          } else setMe(pos, !state.deepLink);
         } else setMe(pos, false);
       },
       () => {
         $('locateBtn').classList.remove('searching');
-        if (firstFix) toast('위치 권한이 없어 서울시청 기준으로 보여드려요');
+        if (firstFix) toast(`위치를 알 수 없어 ${HOME_NAME} 주변을 보여드려요`);
         firstFix = false;
+        state.locFailed = true;
+        centerOnHome();
       },
       { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 },
     );
@@ -610,6 +647,49 @@
     $('freeChip').classList.toggle('on', state.freeOnly);
   }
 
+  // ── 가볼 곳 (관광지·문화시설 등, 행사와 달리 기간 없음) ──
+  const OUTDOOR_KIND = /공원|정원|수목원|숲|산|고개|오름|봉우리|둘레길|골목|거리|광장|호수|한강|섬|해변|야영|캠핑|생태|고궁|성곽|산성|마을|시장|테마파크|동물원|전망/;
+  function normalizePlace(p) {
+    return {
+      ...p,
+      isPlace: true,
+      src: 'place',
+      cat: p.kind,
+      place: p.title,
+      start: '0000-00-00',
+      end: '9999-12-31',
+      time: '',
+      fee: '',
+      free: false,
+      out: OUTDOOR_KIND.test(`${p.kind} ${p.title}`) && !/박물관|미술관|전시|기념관/.test(p.kind),
+      url: `https://korean.visitkorea.or.kr/search/search_list.do?keyword=${encodeURIComponent(p.title)}`,
+    };
+  }
+  let placesLoading = null;
+  function loadPlaces() {
+    if (state.places.length) return Promise.resolve();
+    placesLoading ??= fetch('data/places.json', { cache: 'no-cache' })
+      .then((r) => r.json())
+      .then((d) => {
+        state.places = d.places.map(normalizePlace);
+        state.places.forEach((p) => state.byId.set(p.id, p));
+      })
+      .catch(() => toast('가볼 곳을 불러오지 못했어요'));
+    return placesLoading;
+  }
+  $('placeChip').classList.toggle('on', state.showPlaces);
+  $('placeChip').addEventListener('click', async () => {
+    state.showPlaces = !state.showPlaces;
+    store('showPlaces', state.showPlaces);
+    $('placeChip').classList.toggle('on', state.showPlaces);
+    if (state.showPlaces) {
+      await loadPlaces();
+      toast('공원·미술관·고궁 같은 가볼 곳도 함께 보여드려요');
+    }
+    if (state.selected) closeDetail();
+    renderMarkers();
+  });
+
   // ── 토스트 ──
   let toastTimer;
   function toast(msg) {
@@ -633,15 +713,17 @@
   loadWeather();
   fetch('data/events.json', { cache: 'no-cache' })
     .then((r) => r.json())
-    .then((data) => {
+    .then(async (data) => {
       state.events = data.events;
       state.byId = new Map(data.events.map((e) => [e.id, e]));
+      if (state.showPlaces || state.deepLink?.startsWith('p')) await loadPlaces();
       const updated = new Date(data.updatedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
       const bySrc = {};
       data.events.forEach((e) => (bySrc[e.src ?? 'seoul'] = (bySrc[e.src ?? 'seoul'] ?? 0) + 1));
       $('foot').textContent = `${updated} 업데이트 · ${data.count}건 (${Object.entries(bySrc).map(([s, n]) => `${SRC[s] ?? s} ${n}`).join(', ')})${data.mode === 'sample' ? ' · 미리보기 데이터' : ''}`;
       renderMarkers();
       if (!state.deepLink && state.me && dist(state.me, SEOUL) <= 60e3) centerOnMe();
+      else if (state.locFailed) centerOnHome();
       const linked = state.deepLink && state.byId.get(state.deepLink);
       if (linked) {
         history.replaceState(null, '', location.pathname);

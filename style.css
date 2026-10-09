@@ -213,6 +213,9 @@ button { cursor: pointer; }
 .btn.small { height: 40px; font-size: 14px; }
 .btn.icon { font-size: 20px; }
 .btn.saved { color: var(--date); }
+.web { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 14px 2px 0; font-size: 13px; }
+.web span { color: var(--muted); font-weight: 600; margin-right: 2px; }
+.web a { color: var(--text); text-decoration: none; font-weight: 600; padding: 6px 10px; border-radius: 999px; background: var(--surface-2); }
 .src { color: var(--muted); font-size: 12px; margin: 16px 0 0; }
 .near { margin-top: 22px; }
 .near h4 { margin: 0 0 10px; font-size: 16px; font-weight: 800; }
@@ -253,6 +256,11 @@ button { cursor: pointer; }
   color: var(--seg-on-text, #fff); background: var(--seg-on);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--seg-on) 22%, transparent), 0 4px 12px rgba(0,0,0,.25);
 }
+
+/* 가볼 곳: 둥근 사각형, 조금 작게 */
+.pin.place { width: 32px; height: 32px; border-radius: 10px; }
+.pin.place::before { width: 8px; height: 8px; bottom: -7px; }
+.pin.place span { font-size: 16px; }
 
 .me {
   width: 18px; height: 18px; border-radius: 50%; background: #2f6bff; border: 3px solid #fff;
