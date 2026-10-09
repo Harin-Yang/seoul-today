@@ -71,7 +71,27 @@ function slowGet(url, timeout = 45000) {
   });
 }
 
+// 서버별 연결 실패 횟수. 계속 안 붙는 서버는 오래 기다리지 않고 바로 실패시킨다(수집 시간이 끝없이 늘어나지 않게)
+const connectFails = new Map();
+const MAX_CONNECT_FAILS = 4;
+const hostOf = (url) => url.match(/^https?:\/\/([^/:]+)/)?.[1] ?? '';
+
 export async function getText(url, { retries = 3, timeout = 30000 } = {}) {
+  const host = hostOf(url);
+  if ((connectFails.get(host) ?? 0) >= MAX_CONNECT_FAILS) {
+    throw new Error(`${host} 연결이 계속 실패해 건너뜀`);
+  }
+  try {
+    return await getTextOnce(url, { retries, timeout });
+  } catch (err) {
+    if (/CONNECT_TIMEOUT|ECONNREFUSED|ECONNRESET|ETIMEDOUT|slowGet timeout|fetch failed/.test(err.message)) {
+      connectFails.set(host, (connectFails.get(host) ?? 0) + 1);
+    }
+    throw err;
+  }
+}
+
+async function getTextOnce(url, { retries = 3, timeout = 30000 } = {}) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(timeout) });
