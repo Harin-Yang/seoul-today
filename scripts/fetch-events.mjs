@@ -20,7 +20,7 @@ const SOURCES = [['seoul', fetchSeoul], ['culture', fetchCulture], ['tour', fetc
 function keyShape(k) {
   if (!k) return null;
   const t = k.trim();
-  return { len: t.length, trimmed: t.length !== k.length, invisible: /[200B-200D2060FEFF]/.test(k), percent: t.includes('%'), plusSlashEq: /[+/=]/.test(t), hexOnly: /^[0-9a-f]+$/i.test(t) };
+  return { len: t.length, trimmed: t.length !== k.length, invisible: /[​-‍⁠﻿]/.test(k), percent: t.includes('%'), plusSlashEq: /[+/=]/.test(t), hexOnly: /^[0-9a-f]+$/i.test(t) };
 }
 console.log('DATA_GO_KR_KEY 형태:', JSON.stringify(keyShape(process.env.DATA_GO_KR_KEY)));
 
