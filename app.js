@@ -569,6 +569,11 @@
     toastTimer = setTimeout(() => (t.hidden = true), 2600);
   }
 
+  // ── 오프라인 지원 ──
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').catch(() => { /* 없어도 동작 */ });
+  }
+
   // ── 시작 ──
   map.on('moveend', renderList);
   setSheet('peek');
