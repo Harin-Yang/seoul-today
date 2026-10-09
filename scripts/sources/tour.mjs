@@ -64,7 +64,12 @@ export async function fetchTour(today, keyRaw = process.env.DATA_GO_KR_KEY) {
   candidates.forEach(({ it, start, end, pos }, i) => {
     const intro = intros[i]?.error ? {} : intros[i] ?? {};
     const common = commons[i]?.error ? {} : commons[i] ?? {};
-    const fee = String(intro.usetimefestival ?? '').replace(/<br\s*\/?>/gi, ' ').trim();
+    // "- 일반 65,000원<br>- 장애인 …" 꼴을 "일반 65,000원 · 장애인 …"으로
+    const fee = String(intro.usetimefestival ?? '')
+      .split(/<br\s*\/?>|\n/i)
+      .map((s) => s.replace(/<[^>]+>/g, '').replace(/^\s*[-·•※]\s*/, '').trim())
+      .filter(Boolean)
+      .join(' · ');
     const raw = {
       TITLE: it.title,
       CODENAME: category(it.title),

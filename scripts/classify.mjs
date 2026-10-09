@@ -103,6 +103,8 @@ export function classify(r) {
   // 저녁 시간대(18시 이후) 프로그램은 데이트 가산점
   const hours = [...(r.PRO_TIME || '').matchAll(/(\d{1,2}):\d{2}/g)].map((m) => +m[1]);
   if (hours.some((h) => h >= 18)) scores.date += 1;
+  // 제목 자체가 밤·야경·로맨틱한 행사면 데이트를 대표 라벨로
+  if (/야행|야간|별빛|달빛|밤의|밤에|야경|불꽃|피크닉|와인|재즈|로맨/.test(r.TITLE || '')) scores.date += 2;
   if (r.IS_FREE === '무료') scores.solo += 0.5;
 
   // 동점이면 friends > date > solo 순으로 대표 라벨을 정해 지도 색이 한쪽으로 쏠리지 않게 한다
