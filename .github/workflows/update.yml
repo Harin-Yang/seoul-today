@@ -23,10 +23,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: 서울시 문화행사 수집
+      - name: 문화행사 수집 (서울시·문화정보원·관광공사)
         run: node scripts/fetch-events.mjs
         env:
           SEOUL_API_KEY: ${{ secrets.SEOUL_API_KEY }}
+          DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
       - name: 변경사항 커밋
         run: |
           git config user.name "github-actions[bot]"

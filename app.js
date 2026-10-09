@@ -11,6 +11,7 @@
     '전시/미술': '🎨', '콘서트': '🎤', '클래식': '🎻', '독주/독창회': '🎻', '국악': '🥁', '무용': '💃',
     '뮤지컬/오페라': '🎭', '연극': '🎭', '영화': '🎬', '교육/체험': '✋', '기타': '✨',
   };
+  const SRC = { seoul: '서울시 문화행사 정보', culture: '문화포털(한국문화정보원)', tour: '한국관광공사' };
   const catEmoji = (cat) => CAT_EMOJI[cat] ?? (cat?.startsWith('축제') ? '🎪' : '✨');
   const LIST_LIMIT = 80;
   const WALK_M_PER_MIN = 67;
@@ -255,6 +256,7 @@
         <a class="btn" href="${esc(e.url)}" target="_blank" rel="noopener">상세 정보</a>
         ${e.ticket ? `<a class="btn" href="${esc(e.ticket)}" target="_blank" rel="noopener">예매·신청</a>` : ''}
       </div>
+      <p class="src">출처: ${[e.src ?? 'seoul', ...(e.alt ?? [])].map((s) => SRC[s] ?? s).join(' · ')}</p>
       ${e.img ? `<img class="poster" src="${esc(e.img.replace('thumb=Y', 'thumb=N'))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}`;
     $('list').hidden = true;
     $('detail').hidden = false;
@@ -513,7 +515,9 @@
       state.events = data.events;
       state.byId = new Map(data.events.map((e) => [e.id, e]));
       const updated = new Date(data.updatedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-      $('foot').textContent = `${updated} 업데이트 · 서울시 문화행사 정보 ${data.count}건${data.mode === 'sample' ? ' (미리보기 데이터)' : ''}`;
+      const bySrc = {};
+      data.events.forEach((e) => (bySrc[e.src ?? 'seoul'] = (bySrc[e.src ?? 'seoul'] ?? 0) + 1));
+      $('foot').textContent = `${updated} 업데이트 · ${data.count}건 (${Object.entries(bySrc).map(([s, n]) => `${SRC[s] ?? s} ${n}`).join(', ')})${data.mode === 'sample' ? ' · 미리보기 데이터' : ''}`;
       renderMarkers();
       if (!state.deepLink && state.me && dist(state.me, SEOUL) <= 60e3) centerOnMe();
       const linked = state.deepLink && state.byId.get(state.deepLink);
