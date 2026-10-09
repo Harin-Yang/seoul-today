@@ -24,7 +24,12 @@ jobs:
         with:
           node-version: 22
       - name: 문화행사 수집 (서울시·문화정보원·관광공사)
-        run: node scripts/fetch-events.mjs
+        run: |
+          for i in 1 2 3; do
+            node scripts/fetch-events.mjs --strict && exit 0
+            echo "재시도 대기 ($i)"; sleep 90
+          done
+          node scripts/fetch-events.mjs
         env:
           SEOUL_API_KEY: ${{ secrets.SEOUL_API_KEY }}
           DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}

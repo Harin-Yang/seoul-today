@@ -6,7 +6,7 @@ const BASE = 'http://openapi.seoul.go.kr:8088';
 const PAGE = 1000;
 
 async function call(key, start, end, filter = '') {
-  const text = await getText(`${BASE}/${key}/json/culturalEventInfo/${start}/${end}/${filter}`);
+  const text = await getText(`${BASE}/${key}/json/culturalEventInfo/${start}/${end}/${filter}`, { retries: 5 });
   if (!text.startsWith('{')) throw new Error(text.slice(0, 200));
   const body = JSON.parse(text).culturalEventInfo;
   if (!body) return { total: 0, rows: [] };

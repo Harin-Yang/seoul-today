@@ -57,7 +57,7 @@ export async function getText(url, { retries = 3, timeout = 30000 } = {}) {
         const cause = err.cause ? ` (${err.cause.code ?? ''} ${err.cause.message ?? ''})` : '';
         throw new Error(`${err.message}${cause} @ ${url.replace(/serviceKey=[^&]+/, 'serviceKey=***').slice(0, 120)}`);
       }
-      await new Promise((r) => setTimeout(r, 1500 * attempt));
+      await new Promise((r) => setTimeout(r, 2000 * attempt));
     }
   }
 }
