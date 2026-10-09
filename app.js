@@ -25,6 +25,8 @@
     when: 'today',
     freeOnly: false,
     indoorOnly: false,
+    nightOnly: false,
+    query: '',
     sort: 'near',
     me: null,
     selected: null,
@@ -109,12 +111,27 @@
   }
 
   // ── 필터 ──
+  // 고른 기간의 모든 요일이 정기 휴관일이면 갈 수 없으니 뺀다 ("7일 내"는 빼지 않음)
+  function rangeDays() {
+    if (state.when === 'week') return null;
+    const [from, to] = range(state.when);
+    const days = [];
+    for (let d = from; d <= to; d = addDays(d, 1)) days.push(new Date(d + 'T12:00:00+09:00').getUTCDay());
+    return days;
+  }
+  const closedAll = (e, days) => days && e.closed && days.every((d) => e.closed.includes(d));
+  const norm = (s) => s.toLowerCase().replace(/s+/g, '');
   function baseFiltered() {
     const [from, to] = range(state.when);
+    const days = rangeDays();
+    const q = norm(state.query);
+    // 검색 중에는 기간과 상관없이 2주 안의 모든 행사에서 찾는다
     return state.events.filter((e) =>
-      e.start <= to && e.end >= from &&
+      (q || (e.start <= to && e.end >= from && !closedAll(e, days))) &&
       (!state.freeOnly || e.free) &&
-      (!state.indoorOnly || !e.out));
+      (!state.indoorOnly || !e.out) &&
+      (!state.nightOnly || e.night) &&
+      (!q || norm(`${e.title} ${e.place} ${e.gu} ${e.cat}`).includes(q)));
   }
   function matchesLabel(e, label) {
     if (label === 'all') return true;
@@ -144,6 +161,7 @@
     return `<div class="tags">${e.labels.map((l) => `<span class="tag ${l}">${LABELS[l].emoji} ${LABELS[l].name}</span>`).join('')}${
       e.free ? '<span class="tag plain">무료</span>' : ''}${
       e.out ? '<span class="tag plain">야외</span>' : ''}${
+      e.night ? '<span class="tag plain">🌙 저녁</span>' : ''}${
       left <= 3 && left >= 1 && e.start <= today ? `<span class="tag soon">D-${left}</span>` : ''}</div>`;
   }
 
@@ -159,7 +177,7 @@
     const bounds = map.getBounds().pad(0.05);
     const o = origin();
     const base = baseFiltered();
-    const inViewBase = base.filter((e) => bounds.contains([e.lat, e.lng]));
+    const inViewBase = state.query ? base : base.filter((e) => bounds.contains([e.lat, e.lng]));
     updateChipCounts(inViewBase);
     const all = base.filter((e) => matchesLabel(e, state.label));
     const items = inViewBase
@@ -167,7 +185,7 @@
       .map((e) => ({ e, d: dist(o, [e.lat, e.lng]) }))
       .sort(state.sort === 'near' ? (a, b) => a.d - b.d : (a, b) => a.e.end.localeCompare(b.e.end) || a.d - b.d);
 
-    $('countText').textContent = `이 지역 ${items.length}곳`;
+    $('countText').textContent = state.query ? `검색 결과 ${items.length}곳` : `이 지역 ${items.length}곳`;
     $('sortBtn').textContent = state.sort === 'near' ? '가까운 순' : '마감 임박 순';
     if (!items.length) {
       $('list').innerHTML = `<li class="empty">${
@@ -246,6 +264,7 @@
       <dl>
         <dt>기간</dt><dd>${esc(period)}${e.start > today || e.end === today ? ` <span class="muted">(${esc(when(e))})</span>` : ''}</dd>
         ${e.time ? `<dt>시간</dt><dd>${esc(e.time)}</dd>` : ''}
+        ${e.closed ? `<dt>휴관</dt><dd>${e.closed.map((d) => '일월화수목금토'[d]).join('·')}요일${e.closed.includes(new Date(today + 'T12:00:00+09:00').getUTCDay()) ? ' <span class="tag soon">오늘 휴관</span>' : ''}</dd>` : ''}
         <dt>장소</dt><dd>${esc(e.place)} <span class="muted">${esc(e.gu)}${d}</span><br><a href="${naver}" target="_blank" rel="noopener">네이버지도에서 보기</a></dd>
         <dt>요금</dt><dd>${esc(e.fee || (e.free ? '무료' : '-'))}</dd>
         ${e.target ? `<dt>대상</dt><dd>${esc(e.target)}</dd>` : ''}
@@ -262,6 +281,7 @@
     $('detail').hidden = false;
     $('countText').textContent = '상세 정보';
     $('sortBtn').hidden = true;
+    $('searchBox').hidden = true;
     $('weather').hidden = true;
     $('sheetBody').scrollTop = 0;
     $('backBtn').onclick = () => (history.state?.e ? history.back() : closeDetail());
@@ -287,6 +307,7 @@
     $('detail').hidden = true;
     $('list').hidden = false;
     $('sortBtn').hidden = false;
+    $('searchBox').hidden = false;
     $('weather').hidden = false;
     renderList();
   }
@@ -480,6 +501,28 @@
     $('freeChip').classList.toggle('on', state.freeOnly);
     savePrefs();
     renderMarkers();
+  });
+  $('nightChip').addEventListener('click', () => {
+    state.nightOnly = !state.nightOnly;
+    $('nightChip').classList.toggle('on', state.nightOnly);
+    if (state.nightOnly) toast('19시 이후에도 운영하는 곳만 보여드려요');
+    renderMarkers();
+  });
+  let searchTimer;
+  $('searchInput').addEventListener('input', (ev) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { state.query = ev.target.value.trim(); renderMarkers(); }, 200);
+  });
+  $('searchInput').addEventListener('focus', () => setSheet('full'));
+  $('searchInput').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ev.target.blur(); });
+  // 검색을 마치면 결과가 모두 보이게 지도를 맞춘다
+  $('searchInput').addEventListener('change', (ev) => {
+    state.query = ev.target.value.trim();
+    renderMarkers();
+    const hits = state.query ? filtered() : [];
+    if (!hits.length) return;
+    setSheet('half');
+    map.fitBounds(hits.slice(0, 60).map((e) => [e.lat, e.lng]), { paddingTopLeft: [40, 120], paddingBottomRight: [40, innerHeight * 0.5 + 20], maxZoom: 16 });
   });
   $('indoorChip').addEventListener('click', () => {
     state.indoorOnly = !state.indoorOnly;

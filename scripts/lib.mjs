@@ -103,6 +103,7 @@ export function buildEvent({ id, src, raw, start, end, lat, lng, gu = '', fee = 
   const why = excludeReason(raw);
   if (why) return { excluded: why };
   const c = classify(raw);
+  const sch = parseSchedule(raw.PRO_TIME, raw.ETC_DESC, raw.PROGRAM);
   return {
     id,
     src,
@@ -125,6 +126,8 @@ export function buildEvent({ id, src, raw, start, end, lat, lng, gu = '', fee = 
     lng,
     labels: c.labels,
     reason: c.reason,
+    ...(sch.closed.length ? { closed: sch.closed } : {}),
+    ...(sch.night ? { night: true } : {}),
   };
 }
 
@@ -141,6 +144,29 @@ export function newStats() {
 }
 export function countExcluded(stats, why) {
   stats.excluded[why] = (stats.excluded[why] ?? 0) + 1;
+}
+
+/**
+ * 운영시간·설명 문장에서 정기 휴관 요일과 저녁(19시 이후) 운영 여부를 뽑는다.
+ * closed: 0(일)~6(토) 배열, night: 저녁에 갈 수 있는지
+ */
+const DAY = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
+export function parseSchedule(...texts) {
+  const t = texts.map(cleanText).join(' ');
+  const closed = new Set();
+  // 숫자·한글 바로 뒤의 글자(1월 1'일', 공휴'일')는 요일로 보지 않는다
+  const D = '(?<![\\d가-힣])[월화수목금토일](?:요일)?';
+  const SEP = '\\s*(?:[,·/]|및|과|와)\\s*';
+  const before = new RegExp(`((?:${D})(?:${SEP}(?:${D}))*)(?:${SEP}(?:법정\\s*)?공휴일)?\\s*(?:은|는)?\\s*(?:정기\\s*)?(?:휴관|휴무|휴장|쉽니다|운영\\s*안\\s*함)`, 'g');
+  // "휴관일: 월요일" 꼴은 반드시 "X요일"로 쓴 경우만 (휴관'일'의 일을 일요일로 잘못 읽지 않게)
+  const after = /(?:휴관|휴무|휴장)일?\s*[:：]?\s*(?:매주\s*)?((?:[월화수목금토일]요일)(?:\s*(?:[,·/]|및)\s*(?:[월화수목금토일]요일))*)/g;
+  for (const re of [before, after]) {
+    for (const m of t.matchAll(re)) for (const tok of m[1].match(/[월화수목금토일](?:요일)?/g) ?? []) closed.add(DAY[tok[0]]);
+  }
+  const hours = [...t.matchAll(/(?<!\d)([01]?\d|2[0-3])\s*[:시]\s*([0-5]\d)?/g)].map((m) => +m[1]);
+  for (const m of t.matchAll(/(?:오후|저녁|밤)\s*(\d{1,2})\s*시/g)) hours.push((+m[1] % 12) + 12);
+  const night = hours.some((h) => h >= 19) || /야간|저녁|밤\s|나이트|심야/.test(t);
+  return { closed: [...closed].sort(), night };
 }
 
 /** 서울 25개 구 이름을 주소/장소에서 찾는다 */
