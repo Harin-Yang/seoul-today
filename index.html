@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko" data-skin="soft">
+<html lang="ko">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -19,15 +19,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
   <link rel="stylesheet" href="style.css">
-  <script>
-    // 시안 비교용: ?skin=soft|editorial|night (선택은 이 기기에 기억)
-    (() => {
-      const q = new URLSearchParams(location.search).get('skin');
-      let s = q;
-      try { if (q) localStorage.setItem('skin', q); else s = localStorage.getItem('skin'); } catch { /* 무시 */ }
-      if (['soft', 'editorial', 'night'].includes(s)) document.documentElement.dataset.skin = s;
-    })();
-  </script>
 </head>
 <body>
   <div id="map" aria-label="주변 이벤트 지도"></div>

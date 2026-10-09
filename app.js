@@ -74,9 +74,42 @@
     return 2 * R * Math.asin(Math.sqrt(h));
   }
   function fmtDist(m) {
-    const walk = Math.round((m * 1.3) / WALK_M_PER_MIN); // 직선거리 → 실제 보행 거리 보정
-    if (walk <= 25) return `도보 ${Math.max(walk, 1)}분`;
-    return m < 1000 ? `${Math.round(m / 10) * 10}m` : `${(m / 1000).toFixed(1)}km`;
+    return m < 1000 ? `${Math.max(Math.round(m / 10) * 10, 10)}m` : `${(m / 1000).toFixed(1)}km`;
+  }
+
+  // ── 무슨 행사인지 한눈에: 짧은 분류명, 장소, 한 줄 요약, 가격 ──
+  const CAT_SHORT = {
+    '전시/미술': '전시', '뮤지컬/오페라': '뮤지컬·오페라', '교육/체험': '체험·강연', '독주/독창회': '독주회',
+    '축제-문화/예술': '축제', '축제-전통/역사': '전통 축제', '축제-자연/경관': '야외 축제', '축제-시민화합': '축제',
+    '축제-관광/체육': '축제', '축제-기타': '축제', '기타': '행사',
+  };
+  const catShort = (c) => CAT_SHORT[c] ?? c;
+  // "공간아울, 후암스테이지, 열린극장" → "공간아울", "롯데시네마 [도곡] 7관" → "롯데시네마 도곡"
+  function mainPlace(p) {
+    return String(p ?? '')
+      .replace(/\[([^\]]*)\]/g, ' $1 ')
+      .replace(/\([^)]*\)/g, ' ')
+      .split(/\s*(?:[,/&·]|\s및\s|\s등\s|\s일대|\s일원)\s*/)[0]
+      .replace(/\s*\d+\s*관$|\s*(?:지하)?\s*\d+\s*층.*$/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  // 제목 앞의 [기관명]은 목록에서 떼어낸다
+  const shortTitle = (t) => t.replace(/^\s*\[[^\]]{1,20}\]\s*/, '') || t;
+  function summary(e) {
+    const d = (e.desc ?? '').replace(/\s+/g, ' ').trim();
+    if (d) {
+      const first = d.split(/(?<=[.!?。])\s|(?<=다\.)|(?<=요\.)/)[0].trim();
+      return clip(first.length >= 12 ? first : d, 64);
+    }
+    return /\d/.test(e.time ?? '') ? `🕒 ${clip(e.time, 40)}` : '';
+  }
+  function priceShort(e) {
+    if (e.free) return '무료';
+    const m = (e.fee ?? '').match(/(\d{1,3}(?:,\d{3})+|\d{4,})\s*원/);
+    if (m) return `${m[1]}원${/[,·/]|~|부터/.test(e.fee.slice(m.index + m[0].length)) ? '~' : ''}`;
+    const man = (e.fee ?? '').match(/(\d+(?:\.\d)?)\s*만\s*원/);
+    return man ? `${man[1]}만원` : '';
   }
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const clip = (s, n) => (s.length > n ? `${s.slice(0, n)}…` : s);
@@ -161,7 +194,6 @@
   function tagsHtml(e) {
     const left = daysLeft(e.end);
     return `<div class="tags">${e.labels.map((l) => `<span class="tag ${l}">${LABELS[l].emoji} ${LABELS[l].name}</span>`).join('')}${
-      e.free ? '<span class="tag plain">무료</span>' : ''}${
       e.out ? '<span class="tag plain">야외</span>' : ''}${
       e.night ? '<span class="tag plain">🌙 저녁</span>' : ''}${
       left <= 3 && left >= 1 && e.start <= today ? `<span class="tag soon">D-${left}</span>` : ''}</div>`;
@@ -201,11 +233,11 @@
       <li class="item" data-id="${esc(e.id)}">
         <img class="thumb" src="${esc(e.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">
         <div class="item-body">
+          <div class="kicker">${catEmoji(e.cat)} ${esc(catShort(e.cat))} · ${esc(clip(mainPlace(e.place) || e.gu, 22))}</div>
+          <h3>${state.saved.has(e.id) ? '<span class="heart">♥</span> ' : ''}${esc(shortTitle(e.title))}</h3>
+          ${summary(e) ? `<p class="summary">${esc(summary(e))}</p>` : ''}
+          <div class="meta"><b>${fmtDist(d)}</b> · ${esc(when(e))}${priceShort(e) ? ` · ${esc(priceShort(e))}` : ''}</div>
           ${tagsHtml(e)}
-          <h3>${state.saved.has(e.id) ? '<span class="heart">♥</span> ' : ''}${esc(e.title)}</h3>
-          <div class="meta"><b>${fmtDist(d)}</b> · ${esc(when(e))} · ${catEmoji(e.cat)} ${esc(e.cat)}</div>
-          <div class="meta">${esc(clip(e.place, 24))}${e.time ? ` · ${esc(clip(e.time, 22))}` : ''}</div>
-          <div class="reason">${esc(e.reason)}</div>
         </div>
       </li>`).join('') + (items.length > LIST_LIMIT ? `<li class="empty">가까운 ${LIST_LIMIT}곳까지 보여드려요. 지도를 확대해 보세요.</li>` : '')
       + (!state.query && items.length < MIN_VISIBLE && all.length > items.length
@@ -264,13 +296,14 @@
     const d = state.me ? ` · 내 위치에서 ${fmtDist(dist(state.me, [e.lat, e.lng]))}` : '';
     const saved = state.saved.has(e.id);
     const kakao = `https://map.kakao.com/link/to/${encodeURIComponent(e.place)},${e.lat},${e.lng}`;
-    const naver = `https://map.naver.com/p/search/${encodeURIComponent(e.place)}`;
+    const naver = `https://map.naver.com/p/search/${encodeURIComponent(mainPlace(e.place) || e.title)}`;
     const period = e.start === e.end ? e.start : `${e.start} ~ ${e.end}`;
     $('detail').innerHTML = `
       <button class="back" id="backBtn">‹ 목록</button>
-      ${tagsHtml(e)}
+      <div class="kicker">${catEmoji(e.cat)} ${esc(catShort(e.cat))} · ${esc(mainPlace(e.place) || e.place)}</div>
       <h2>${esc(e.title)}</h2>
-      <div class="reason">${esc(e.reason)}</div>
+      ${e.desc ? `<p class="desc clamp" id="descText">${esc(e.desc)}</p>` : ''}
+      ${tagsHtml(e)}
       <div class="actions">
         <a class="btn primary" href="${kakao}" target="_blank" rel="noopener">길찾기</a>
         <button class="btn" id="shareBtn" type="button">공유</button>
@@ -280,12 +313,11 @@
         <dt>기간</dt><dd>${esc(period)}${e.start > today || e.end === today ? ` <span class="muted">(${esc(when(e))})</span>` : ''}</dd>
         ${e.time ? `<dt>시간</dt><dd>${esc(e.time)}</dd>` : ''}
         ${e.closed ? `<dt>휴관</dt><dd>${e.closed.map((d) => '일월화수목금토'[d]).join('·')}요일${e.closed.includes(new Date(today + 'T12:00:00+09:00').getUTCDay()) ? ' <span class="tag soon">오늘 휴관</span>' : ''}</dd>` : ''}
-        <dt>장소</dt><dd>${esc(e.place)} <span class="muted">${esc(e.gu)}${d}</span><br><a href="${naver}" target="_blank" rel="noopener">네이버지도에서 보기</a></dd>
+        <dt>장소</dt><dd>${esc(e.place)} <span class="muted">${esc(e.gu)}${d}</span><br><a href="${naver}" target="_blank" rel="noopener" id="naverLink">네이버지도에서 보기</a></dd>
         <dt>요금</dt><dd>${esc(e.fee || (e.free ? '무료' : '-'))}</dd>
         ${e.target ? `<dt>대상</dt><dd>${esc(e.target)}</dd>` : ''}
         <dt>분류</dt><dd>${catEmoji(e.cat)} ${esc(e.cat)}${e.out ? ' · 야외' : ''}</dd>
       </dl>
-      ${e.desc ? `<p class="desc">${esc(e.desc)}</p>` : ''}
       <div class="links">
         <a class="btn" href="${esc(e.url)}" target="_blank" rel="noopener">상세 정보</a>
         ${e.ticket ? `<a class="btn" href="${esc(e.ticket)}" target="_blank" rel="noopener">예매·신청</a>` : ''}
@@ -295,7 +327,7 @@
         return near.length ? `<section class="near"><h4>근처에서 같이 가기 좋은 곳</h4>${near.map(({ x, d }) => `
           <button class="near-item" data-id="${esc(x.id)}" type="button">
             <span class="near-emoji">${catEmoji(x.cat)}</span>
-            <span class="near-body"><b>${esc(clip(x.title, 34))}</b><small>${fmtDist(d)} · ${esc(when(x))}${x.night ? ' · 🌙 저녁' : ''}</small></span>
+            <span class="near-body"><b>${esc(clip(shortTitle(x.title), 34))}</b><small>${fmtDist(d)} · ${esc(when(x))}${x.night ? ' · 🌙 저녁' : ''}</small></span>
           </button>`).join('')}</section>` : '';
       })()}
       <p class="src">출처: ${[e.src ?? 'seoul', ...(e.alt ?? [])].map((s) => SRC[s] ?? s).join(' · ')}</p>
@@ -311,7 +343,18 @@
       if (x) openDetail(x, { fly: true });
     }));
     $('saveBtn').onclick = () => toggleSave(e);
+    $('descText')?.addEventListener('click', (ev) => ev.currentTarget.classList.toggle('clamp'));
     $('shareBtn').onclick = () => share(e);
+    // 폰에서는 네이버지도 앱을 좌표로 바로 열고, 앱이 없으면 웹 검색으로
+    $('naverLink').onclick = (ev) => {
+      if (!/Android|iPhone|iPad/i.test(navigator.userAgent)) return;
+      ev.preventDefault();
+      const web = ev.currentTarget.href;
+      const app = `nmap://place?lat=${e.lat}&lng=${e.lng}&name=${encodeURIComponent(mainPlace(e.place) || e.title)}&appname=${encodeURIComponent(location.hostname)}`;
+      const t = setTimeout(() => { if (!document.hidden) location.href = web; }, 1200);
+      addEventListener('pagehide', () => clearTimeout(t), { once: true });
+      location.href = app;
+    };
     setSheet('half');
     const m = markers.get(e.id);
     if (fly && m) cluster.zoomToShowLayer(m, () => showAboveSheet([e.lat, e.lng]));

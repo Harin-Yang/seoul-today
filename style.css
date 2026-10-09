@@ -1,4 +1,4 @@
-/* ───────────────── 공통 토큰 (기본 = A. 소프트) ───────────────── */
+/* ───────────────── 디자인 토큰 (소프트) ───────────────── */
 :root {
   --bg: #fbf7f4;
   --surface: #ffffff;
@@ -30,56 +30,7 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* ───────────────── B. 에디토리얼: 흑백 지도 + 굵은 타이포 + 포스터 카드 ───────────────── */
-:root[data-skin="editorial"] {
-  --bg: #ffffff;
-  --surface: #ffffff;
-  --surface-2: #f2f2f2;
-  --text: #111111;
-  --muted: #6b6b6b;
-  --line: #e6e6e6;
-  --shadow: 0 1px 0 #111, 0 6px 18px rgba(0, 0, 0, .10);
-  --shadow-sm: 0 1px 0 rgba(0, 0, 0, .9);
-  --accent: #111111;
-  --date: #ff3d6e;
-  --solo: #4b5bff;
-  --friends: #ff8a00;
-  --seg-bg: #ffffff;
-  --seg-on: #111111;
-  --chip-bg: #ffffff;
-  --chip-on: #111111;
-  --radius: 4px;
-  --card-radius: 2px;
-  --tile-filter: grayscale(1) contrast(.9) brightness(1.08);
-  --pin-face: #111111;
-}
 
-/* ───────────────── C. 나이트: 어두운 지도 + 유리 패널 + 네온 ───────────────── */
-:root[data-skin="night"] {
-  color-scheme: dark;
-  --bg: #0d0e14;
-  --surface: rgba(24, 26, 36, .78);
-  --surface-2: rgba(255, 255, 255, .07);
-  --text: #f2f3f7;
-  --muted: #9a9db0;
-  --line: rgba(255, 255, 255, .09);
-  --shadow: 0 8px 30px rgba(0, 0, 0, .55);
-  --shadow-sm: 0 2px 10px rgba(0, 0, 0, .5);
-  --accent: #8b6bff;
-  --date: #ff5c8a;
-  --solo: #7c8cff;
-  --friends: #ffb020;
-  --seg-bg: rgba(24, 26, 36, .72);
-  --seg-on: #ffffff;
-  --seg-on-text: #0d0e14;
-  --chip-bg: rgba(24, 26, 36, .72);
-  --chip-on: #ffffff;
-  --chip-on-text: #0d0e14;
-  --sheet-bg: rgba(18, 20, 28, .86);
-  --tile-filter: invert(1) hue-rotate(195deg) brightness(.72) contrast(1.15) saturate(.35);
-  --pin-face: #161824;
-  --blur: blur(18px) saturate(1.4);
-}
 
 /* ───────────────── 기본 ───────────────── */
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -100,8 +51,6 @@ button { cursor: pointer; }
 .leaflet-container { font: inherit; background: var(--bg); }
 .leaflet-tile-pane { filter: var(--tile-filter); }
 .leaflet-control-attribution { font-size: 10px; background: rgba(255,255,255,.7) !important; }
-:root[data-skin="night"] .leaflet-control-attribution { background: rgba(0,0,0,.5) !important; color: #aaa; }
-:root[data-skin="night"] .leaflet-control-attribution a { color: #ccc; }
 .leaflet-bottom { bottom: var(--peek, 176px); transition: bottom .25s ease; }
 
 /* ───────────────── 상단: 검색바 + 세그먼트 + 필터 ───────────────── */
@@ -163,7 +112,6 @@ button { cursor: pointer; }
 .chip.select { position: relative; padding-right: 26px; }
 .chip.select::after { content: ""; position: absolute; right: 11px; top: 50%; width: 6px; height: 6px; border: solid currentColor; border-width: 0 2px 2px 0; transform: translateY(-70%) rotate(45deg); opacity: .7; }
 .chip.select select { appearance: none; -webkit-appearance: none; border: 0; background: none; outline: 0; font-weight: 700; padding: 0; cursor: pointer; }
-:root[data-skin="night"] .chip.select select option { background: #1a1c26; }
 @keyframes nudge { 50% { transform: scale(1.06); } }
 
 /* ───────────────── 내 위치 버튼 ───────────────── */
@@ -174,7 +122,6 @@ button { cursor: pointer; }
   display: grid; place-items: center; transition: bottom .25s ease;
   backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
 }
-:root[data-skin="editorial"] .fab { border-radius: 4px; border: 1.5px solid #111; }
 .fab.searching { animation: pulse 1s infinite; }
 @keyframes pulse { 50% { opacity: .45; } }
 
@@ -190,14 +137,11 @@ button { cursor: pointer; }
   will-change: transform;
   backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
 }
-:root[data-skin="editorial"] .sheet { border-radius: 0; border-top: 2px solid #111; box-shadow: none; }
 .sheet.dragging { transition: none; }
 .sheet-head { padding: 10px 18px 8px; touch-action: none; cursor: grab; }
 .grip { width: 36px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 12px; }
-:root[data-skin="night"] .grip { background: rgba(255,255,255,.25); }
 .sheet-title { display: flex; align-items: center; gap: 8px; min-height: 30px; }
 .sheet-title strong { font-size: 19px; font-weight: 800; letter-spacing: -0.03em; white-space: nowrap; }
-:root[data-skin="editorial"] .sheet-title strong { font-size: 22px; font-weight: 900; letter-spacing: -0.04em; }
 .sort {
   margin-left: auto; flex: none; border: 0; background: var(--surface-2); border-radius: 999px;
   padding: 6px 12px; font-size: 13px; font-weight: 600; color: var(--text);
@@ -223,6 +167,8 @@ button { cursor: pointer; }
   margin: 2px 0 0; font-size: 16px; font-weight: 700; line-height: 1.35; letter-spacing: -0.02em;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+.kicker { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.summary { margin: 0; font-size: 13px; line-height: 1.45; color: var(--text); opacity: .82; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: keep-all; }
 .meta { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .meta b { color: var(--accent); font-weight: 700; }
 .reason { font-size: 13px; color: var(--text); opacity: .85; }
@@ -233,26 +179,10 @@ button { cursor: pointer; }
 .tag.date { background: color-mix(in srgb, var(--date) 16%, transparent); color: var(--date); }
 .tag.solo { background: color-mix(in srgb, var(--solo) 16%, transparent); color: var(--solo); }
 .tag.friends { background: color-mix(in srgb, var(--friends) 18%, transparent); color: color-mix(in srgb, var(--friends) 75%, #000); }
-:root[data-skin="night"] .tag.friends { color: var(--friends); }
 .tag.plain { background: var(--surface-2); color: var(--muted); }
 .tag.soon { background: #ff3b30; color: #fff; }
 
-/* 에디토리얼: 포스터가 먼저 보이는 카드 */
-:root[data-skin="editorial"] .list { gap: 0; }
-:root[data-skin="editorial"] .item {
-  flex-direction: column; gap: 10px; padding: 16px 0 18px; box-shadow: none; border-bottom: 1px solid #111; border-radius: 0;
-}
-:root[data-skin="editorial"] .thumb { width: 100%; height: 190px; border-radius: 0; filter: grayscale(.15) contrast(1.05); }
-:root[data-skin="editorial"] .item h3 { font-size: 19px; font-weight: 900; letter-spacing: -0.04em; -webkit-line-clamp: 2; }
-:root[data-skin="editorial"] .tag { border-radius: 0; background: none !important; padding: 0 8px 0 0; text-transform: uppercase; letter-spacing: .04em; }
-:root[data-skin="editorial"] .tag.date::before, :root[data-skin="editorial"] .tag.solo::before, :root[data-skin="editorial"] .tag.friends::before {
-  content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 4px; vertical-align: 1px; background: currentColor;
-}
-:root[data-skin="editorial"] .tag.soon { background: #111 !important; color: #fff; padding: 2px 6px; }
-:root[data-skin="editorial"] .meta b { color: #111; }
 
-/* 나이트: 반투명 카드 */
-:root[data-skin="night"] .item { background: rgba(255,255,255,.04); box-shadow: 0 0 0 1px var(--line); }
 
 .empty { color: var(--muted); text-align: center; padding: 28px 0; line-height: 1.7; list-style: none; }
 .empty .btn { display: inline-grid; margin-top: 10px; padding: 0 16px; }
@@ -260,8 +190,8 @@ button { cursor: pointer; }
 
 /* ───────────────── 상세 ───────────────── */
 .detail .back { border: 0; background: none; color: var(--muted); padding: 2px 0 12px; font-weight: 600; }
-.detail h2 { font-size: 22px; font-weight: 800; margin: 10px 0 6px; line-height: 1.3; letter-spacing: -0.03em; }
-:root[data-skin="editorial"] .detail h2 { font-size: 26px; font-weight: 900; letter-spacing: -0.05em; }
+.detail .kicker { font-size: 13px; margin-top: 10px; }
+.detail h2 { font-size: 22px; font-weight: 800; margin: 4px 0 6px; line-height: 1.3; letter-spacing: -0.03em; }
 .detail .reason { font-size: 14px; color: var(--muted); }
 .detail dl {
   display: grid; grid-template-columns: 52px 1fr; gap: 10px 12px; margin: 16px 0; font-size: 14px;
@@ -270,7 +200,8 @@ button { cursor: pointer; }
 .detail dt { color: var(--muted); font-weight: 600; }
 .detail dd { margin: 0; word-break: keep-all; overflow-wrap: anywhere; }
 .detail dd a { color: var(--accent); font-size: 13px; text-decoration: none; font-weight: 600; }
-.desc { font-size: 14px; line-height: 1.7; color: var(--text); margin: 0 0 14px; word-break: keep-all; overflow-wrap: anywhere; }
+.desc { font-size: 14px; line-height: 1.7; color: var(--text); margin: 8px 0 12px; word-break: keep-all; overflow-wrap: anywhere; }
+.desc.clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
 .actions { display: grid; grid-template-columns: 1fr 1fr 52px; gap: 8px; margin-top: 16px; }
 .links { display: flex; gap: 8px; }
 .links .btn { flex: 1; }
@@ -278,9 +209,7 @@ button { cursor: pointer; }
   display: grid; place-items: center; height: 48px; border-radius: 14px; border: 0;
   background: var(--surface-2); color: var(--text); text-decoration: none; font-weight: 700;
 }
-:root[data-skin="editorial"] .btn { border-radius: 2px; background: #fff; box-shadow: inset 0 0 0 1.5px #111; }
 .btn.primary { background: var(--accent); color: var(--accent-text); box-shadow: none; }
-:root[data-skin="editorial"] .btn.primary { background: #111; color: #fff; }
 .btn.small { height: 40px; font-size: 14px; }
 .btn.icon { font-size: 20px; }
 .btn.saved { color: var(--date); }
@@ -318,20 +247,12 @@ button { cursor: pointer; }
   content: "♥"; position: absolute; top: -7px; right: -7px; width: 17px; height: 17px; border-radius: 50%;
   background: var(--date); color: #fff; font-size: 10px; display: grid; place-items: center; box-shadow: 0 1px 3px rgba(0,0,0,.3);
 }
-:root[data-skin="editorial"] .pin { border-radius: 0; box-shadow: 0 0 0 2px #111, 4px 4px 0 var(--c); }
-:root[data-skin="editorial"] .pin::before { display: none; }
-:root[data-skin="editorial"] .pin span { filter: grayscale(1) brightness(10); }
-:root[data-skin="editorial"] .pin.active { box-shadow: 0 0 0 2px #111, 6px 6px 0 var(--c); }
-:root[data-skin="night"] .pin { box-shadow: 0 0 0 2px var(--c), 0 0 16px color-mix(in srgb, var(--c) 70%, transparent); }
-:root[data-skin="night"] .pin.active { box-shadow: 0 0 0 3px var(--c), 0 0 26px var(--c); }
 
 .cluster {
   display: grid; place-items: center; border-radius: 50%; font-weight: 800; font-size: 14px;
   color: var(--seg-on-text, #fff); background: var(--seg-on);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--seg-on) 22%, transparent), 0 4px 12px rgba(0,0,0,.25);
 }
-:root[data-skin="editorial"] .cluster { border-radius: 0; background: #111; color: #fff; box-shadow: 4px 4px 0 rgba(0,0,0,.2); }
-:root[data-skin="night"] .cluster { background: rgba(139, 107, 255, .9); color: #fff; box-shadow: 0 0 0 4px rgba(139,107,255,.25), 0 0 20px rgba(139,107,255,.6); }
 
 .me {
   width: 18px; height: 18px; border-radius: 50%; background: #2f6bff; border: 3px solid #fff;
