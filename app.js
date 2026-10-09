@@ -205,12 +205,15 @@
           <div class="meta">${esc(clip(e.place, 24))}${e.time ? ` · ${esc(clip(e.time, 22))}` : ''}</div>
           <div class="reason">${esc(e.reason)}</div>
         </div>
-      </li>`).join('') + (items.length > LIST_LIMIT ? `<li class="empty">가까운 ${LIST_LIMIT}곳까지 보여드려요. 지도를 확대해 보세요.</li>` : '');
+      </li>`).join('') + (items.length > LIST_LIMIT ? `<li class="empty">가까운 ${LIST_LIMIT}곳까지 보여드려요. 지도를 확대해 보세요.</li>` : '')
+      + (!state.query && items.length < MIN_VISIBLE && all.length > items.length
+        ? `<li class="empty"><button class="btn small" id="widerBtn">더 넓게 보기 (+${Math.min(all.length - items.length, MIN_VISIBLE)}곳)</button></li>` : '');
+    $('widerBtn')?.addEventListener('click', () => showNearest(all, MIN_VISIBLE));
   }
 
-  function showNearest(list) {
+  function showNearest(list, n = 3) {
     const o = origin();
-    const near = list.map((e) => ({ e, d: dist(o, [e.lat, e.lng]) })).sort((a, b) => a.d - b.d).slice(0, 3);
+    const near = list.map((e) => ({ e, d: dist(o, [e.lat, e.lng]) })).sort((a, b) => a.d - b.d).slice(0, n);
     const pts = near.map(({ e }) => [e.lat, e.lng]);
     if (state.me) pts.push(state.me);
     map.fitBounds(pts, { paddingTopLeft: [40, 120], paddingBottomRight: [40, innerHeight * 0.5 + 20], maxZoom: 16 });
